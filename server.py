@@ -27,7 +27,7 @@ DATA_DIR = os.path.join(ROOT_DIR, "data")
 BACKUP_DIR = os.path.join(DATA_DIR, "backups")
 DATA_FILE = os.path.join(DATA_DIR, "graph-data.json")
 SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
-MAX_BACKUPS = 20
+MAX_BACKUPS = 5
 
 os.makedirs(BACKUP_DIR, exist_ok=True)
 
@@ -44,15 +44,22 @@ MIME_TYPES = {
 
 _write_lock = threading.Lock()
 _server = None
+_last_backup_time = 0
+BACKUP_INTERVAL = 300
 
 
 def now_str():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
-def make_backup():
+def make_backup(force=False):
+    global _last_backup_time
     if not os.path.exists(DATA_FILE):
         return None
+    now = datetime.now().timestamp()
+    if not force and (now - _last_backup_time) < BACKUP_INTERVAL:
+        return None
+    _last_backup_time = now
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     dst = os.path.join(BACKUP_DIR, f"backup_{ts}.json")
     shutil.copy2(DATA_FILE, dst)
@@ -200,7 +207,7 @@ class Handler(BaseHTTPRequestHandler):
         self._json(200, {"ok": True, "saved": now_str()})
 
     def _post_backup(self, _req):
-        path = make_backup()
+        path = make_backup(force=True)
         if path:
             self._json(200, {"ok": True, "backup": os.path.basename(path)})
         else:
@@ -212,7 +219,7 @@ class Handler(BaseHTTPRequestHandler):
         if not os.path.exists(src):
             self._json(404, {"error": "Backup not found"})
             return
-        make_backup()
+        make_backup(force=True)
         shutil.copy2(src, DATA_FILE)
         self._json(200, {"ok": True, "restored": name})
 
