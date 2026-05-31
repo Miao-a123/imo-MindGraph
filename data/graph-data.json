@@ -1,0 +1,456 @@
+{
+  "nodes": [
+    {
+      "id": "n1779971960060_7o60io",
+      "title": "嵌入式",
+      "content": "",
+      "x": -50.506574984558455,
+      "y": 548.2524980358961,
+      "color": "#322e47",
+      "shape": "circle"
+    },
+    {
+      "id": "n1779971974948_ykntyk",
+      "title": "协议",
+      "content": "",
+      "x": -240.10444836704642,
+      "y": 776.5776017506331,
+      "color": "#322e47",
+      "shape": "circle"
+    },
+    {
+      "id": "n1779973990038_953jx3",
+      "title": "STM32",
+      "content": "",
+      "x": 162.1758359493781,
+      "y": 721.7621344295324,
+      "color": "#322e47",
+      "shape": "pill"
+    },
+    {
+      "id": "n1779974046494_8r2gpp",
+      "title": "watermelon",
+      "content": "",
+      "x": 12295.31988137052,
+      "y": -2191.2148536164495,
+      "color": "#322e47",
+      "shape": "circle"
+    },
+    {
+      "id": "n1780209184249_7668ia",
+      "title": "UART",
+      "content": "",
+      "x": -61.65056775858455,
+      "y": 918.9452655478136,
+      "color": "#322e47",
+      "shape": "circle"
+    },
+    {
+      "id": "n1780209187534_u79uvd",
+      "title": "CAN",
+      "content": "",
+      "x": -438.1822438858567,
+      "y": 653.8342830834797,
+      "color": "#322e47",
+      "shape": "circle"
+    },
+    {
+      "id": "n1780209192852_fz6zhl",
+      "title": "SPI",
+      "content": "",
+      "x": -172.67029970281385,
+      "y": 1010.398567372602,
+      "color": "#322e47",
+      "shape": "circle"
+    },
+    {
+      "id": "n1780209194420_2tpn29",
+      "title": "I2C",
+      "content": "",
+      "x": -484.55141406277005,
+      "y": 789.9814957598448,
+      "color": "#322e47",
+      "shape": "circle"
+    },
+    {
+      "id": "n1780209201117_hu6mla",
+      "title": "USB",
+      "content": "",
+      "x": -306.38305044961146,
+      "y": 1064.5071799992172,
+      "color": "#322e47",
+      "shape": "circle"
+    },
+    {
+      "id": "n1780209212601_iouu7z",
+      "title": "以太网",
+      "content": "",
+      "x": -351.37473352055565,
+      "y": 927.7514869789653,
+      "color": "#322e47",
+      "shape": "circle"
+    },
+    {
+      "id": "n1780209226079_j14mb6",
+      "title": "DMA",
+      "content": "",
+      "x": -495.4449817716739,
+      "y": 933.8672853556968,
+      "color": "#322e47",
+      "shape": "circle"
+    },
+    {
+      "id": "n1780209228367_zwnmcr",
+      "title": "FSMC",
+      "content": "",
+      "x": 400.4217182313845,
+      "y": 741.9765065421574,
+      "color": "#322e47",
+      "shape": "circle"
+    },
+    {
+      "id": "n1780209262638_mouhqt",
+      "title": "C",
+      "content": "",
+      "x": -235.78353910746742,
+      "y": 322.39872539785813,
+      "color": "#322e47",
+      "shape": "circle"
+    },
+    {
+      "id": "n1780209269763_75gmdc",
+      "title": "数组",
+      "content": "",
+      "x": -129.43423101377414,
+      "y": 114.46069590701458,
+      "color": "#322e47",
+      "shape": "circle"
+    },
+    {
+      "id": "n1780209277032_c4fi4k",
+      "title": "指针",
+      "content": "",
+      "x": -267.54843240866353,
+      "y": 73.94191766906894,
+      "color": "#322e47",
+      "shape": "circle"
+    },
+    {
+      "id": "n1780209278801_pkemru",
+      "title": "链表",
+      "content": "",
+      "x": -401.4755183618892,
+      "y": 126.61494540783518,
+      "color": "#322e47",
+      "shape": "circle"
+    },
+    {
+      "id": "n1780209281247_9fzhhy",
+      "title": "结构体",
+      "content": "",
+      "x": -462.3355867911486,
+      "y": 389.49854129244557,
+      "color": "#322e47",
+      "shape": "circle"
+    },
+    {
+      "id": "n1780209283452_bt9xwl",
+      "title": "内存",
+      "content": "",
+      "x": -481.2054989269908,
+      "y": 246.53852458039367,
+      "color": "#322e47",
+      "shape": "circle"
+    },
+    {
+      "id": "n1780209287022_lkc70t",
+      "title": "ROS",
+      "content": "",
+      "x": 481.01551733585467,
+      "y": 315.9124121481872,
+      "color": "#322e47",
+      "shape": "circle"
+    },
+    {
+      "id": "n1780209297905_90zg2u",
+      "title": "进程管理",
+      "content": "",
+      "x": 724.7965156778,
+      "y": 294.08515313935743,
+      "color": "#322e47",
+      "shape": "circle"
+    },
+    {
+      "id": "n1780209303156_a8f9yy",
+      "title": "内存管理",
+      "content": "",
+      "x": 653.8038163213122,
+      "y": 139.29368216057614,
+      "color": "#322e47",
+      "shape": "circle"
+    },
+    {
+      "id": "n1780209317227_fq9bmf",
+      "title": "机器人",
+      "content": "",
+      "x": 214.85329092685114,
+      "y": 395.1166590040431,
+      "color": "#322e47",
+      "shape": "circle"
+    },
+    {
+      "id": "n1780209401661_3882va",
+      "title": "建模",
+      "content": "",
+      "x": 357.3381725203141,
+      "y": 208.88318182796692,
+      "color": "#322e47",
+      "shape": "circle"
+    },
+    {
+      "id": "n1780209405937_zas9wg",
+      "title": "仿真",
+      "content": "",
+      "x": 222.44376918866195,
+      "y": 157.92104319565428,
+      "color": "#322e47",
+      "shape": "circle"
+    },
+    {
+      "id": "n1780212093104_c3rt05",
+      "title": "子词条",
+      "content": "",
+      "x": 354.6453446541252,
+      "y": 878.6529782966244,
+      "color": "#322e47",
+      "shape": "circle"
+    },
+    {
+      "id": "n1780212095031_t0j1fi",
+      "title": "子词条",
+      "content": "",
+      "x": 233.13773815834128,
+      "y": 956.3030995516749,
+      "color": "#322e47",
+      "shape": "circle"
+    }
+  ],
+  "links": [
+    {
+      "id": "n1779971974948_5vyowe",
+      "source": "n1779971960060_7o60io",
+      "target": "n1779971974948_ykntyk",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1779973990038_e0rupo",
+      "source": "n1779971960060_7o60io",
+      "target": "n1779973990038_953jx3",
+      "type": "free",
+      "label": "",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780209184249_s49rp2",
+      "source": "n1779971974948_ykntyk",
+      "target": "n1780209184249_7668ia",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780209187534_403tk5",
+      "source": "n1779971974948_ykntyk",
+      "target": "n1780209187534_u79uvd",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780209192852_4om6mn",
+      "source": "n1779971974948_ykntyk",
+      "target": "n1780209192852_fz6zhl",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780209194420_9wrzv1",
+      "source": "n1779971974948_ykntyk",
+      "target": "n1780209194420_2tpn29",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780209201117_4q35py",
+      "source": "n1779971974948_ykntyk",
+      "target": "n1780209201117_hu6mla",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780209212601_xtsnkb",
+      "source": "n1779971974948_ykntyk",
+      "target": "n1780209212601_iouu7z",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780209226079_mcq0jo",
+      "source": "n1779971974948_ykntyk",
+      "target": "n1780209226079_j14mb6",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780209238617_n1gpzt",
+      "source": "n1780209228367_zwnmcr",
+      "target": "n1779973990038_953jx3",
+      "type": "free",
+      "label": "",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780209262638_dkzk5o",
+      "source": "n1779971960060_7o60io",
+      "target": "n1780209262638_mouhqt",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780209269763_4jt6qf",
+      "source": "n1780209262638_mouhqt",
+      "target": "n1780209269763_75gmdc",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780209277032_ax99bx",
+      "source": "n1780209262638_mouhqt",
+      "target": "n1780209277032_c4fi4k",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780209278802_ecyvhr",
+      "source": "n1780209262638_mouhqt",
+      "target": "n1780209278801_pkemru",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780209281247_jekqik",
+      "source": "n1780209262638_mouhqt",
+      "target": "n1780209281247_9fzhhy",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780209283452_8g1dks",
+      "source": "n1780209262638_mouhqt",
+      "target": "n1780209283452_bt9xwl",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780209297905_2lxqn9",
+      "source": "n1780209287022_lkc70t",
+      "target": "n1780209297905_90zg2u",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780209303156_twd4rf",
+      "source": "n1780209287022_lkc70t",
+      "target": "n1780209303156_a8f9yy",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780209317227_9h6v7y",
+      "source": "n1779971960060_7o60io",
+      "target": "n1780209317227_fq9bmf",
+      "type": "free",
+      "label": "",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780209337606_rtlakr",
+      "source": "n1780209287022_lkc70t",
+      "target": "n1780209317227_fq9bmf",
+      "type": "free",
+      "label": "",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780209401661_lfbmqx",
+      "source": "n1780209317227_fq9bmf",
+      "target": "n1780209401661_3882va",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780209405937_lj67ya",
+      "source": "n1780209317227_fq9bmf",
+      "target": "n1780209405937_zas9wg",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780212093104_zylu5e",
+      "source": "n1779973990038_953jx3",
+      "target": "n1780212093104_c3rt05",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780212095031_q79m95",
+      "source": "n1779973990038_953jx3",
+      "target": "n1780212095031_t0j1fi",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    }
+  ]
+}

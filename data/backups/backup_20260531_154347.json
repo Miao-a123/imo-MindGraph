@@ -1,0 +1,258 @@
+{
+  "nodes": [
+    {
+      "id": "n1780213398709_3ktew9",
+      "title": "人工智能",
+      "content": "人工智能是计算机科学分支，旨在创建模拟人类智能的系统。涵盖机器学习、深度学习、自然语言处理等。",
+      "x": 576.5247874300953,
+      "y": 453.4636124722152,
+      "color": "#4a9eff",
+      "shape": "rounded-rect"
+    },
+    {
+      "id": "n1780213398709_u5tkm0",
+      "title": "机器学习",
+      "content": "机器学习使计算机从数据中学习模式而不需显式编程。包括监督学习、无监督学习和强化学习。",
+      "x": 327.3975689219723,
+      "y": 418.78356957066774,
+      "color": "#5cce7b",
+      "shape": "circle"
+    },
+    {
+      "id": "n1780213398709_mwarvt",
+      "title": "深度学习",
+      "content": "深度学习使用多层神经网络从海量数据中学习复杂模式。CNN用于视觉，RNN/Transformer用于序列。",
+      "x": 658.9526309754364,
+      "y": 127.00911719996482,
+      "color": "#f0a040",
+      "shape": "diamond"
+    },
+    {
+      "id": "n1780213398709_ixw8ah",
+      "title": "自然语言处理",
+      "content": "NLP使计算机理解、解释和生成人类语言。应用包括机器翻译、情感分析、对话系统。",
+      "x": 659.2973173410545,
+      "y": 298.77407493419093,
+      "color": "#cc5a8a",
+      "shape": "hexagon"
+    },
+    {
+      "id": "n1780213398709_u5g78o",
+      "title": "计算机视觉",
+      "content": "计算机视觉使机器从图像和视频中提取信息并理解视觉世界。包括目标检测、图像分割。",
+      "x": 485.0847975909489,
+      "y": 163.04398024148568,
+      "color": "#7b6bcc",
+      "shape": "pill"
+    },
+    {
+      "id": "n1780213398709_zymapw",
+      "title": "Transformer",
+      "content": "基于自注意力机制的架构，彻底改变了NLP和CV领域。GPT、BERT等均基于此。",
+      "x": 441.3397978845098,
+      "y": 330.5104452102998,
+      "color": "#40c0c0",
+      "shape": "rounded-rect"
+    },
+    {
+      "id": "n1780213424895_fiv9xf",
+      "title": "子词条",
+      "content": "",
+      "x": 358.47362423299415,
+      "y": 560.3028014777271,
+      "color": "#4a9eff",
+      "shape": "rounded-rect"
+    },
+    {
+      "id": "n1780213425705_sdxvot",
+      "title": "同级词条",
+      "content": "",
+      "x": 462.3984957168841,
+      "y": 668.6995732762321,
+      "color": "#4a9eff",
+      "shape": "rounded-rect"
+    },
+    {
+      "id": "n1780213425983_mkldad",
+      "title": "同级词条",
+      "content": "",
+      "x": 605.3417486526637,
+      "y": 713.755011886447,
+      "color": "#4a9eff",
+      "shape": "rounded-rect"
+    },
+    {
+      "id": "n1780213426283_4hf2fw",
+      "title": "同级词条",
+      "content": "",
+      "x": 718.7996174957491,
+      "y": 621.5638273864539,
+      "color": "#4a9eff",
+      "shape": "rounded-rect"
+    },
+    {
+      "id": "n1780213426591_qkt4x3",
+      "title": "同级词条",
+      "content": "",
+      "x": 760.3938099636849,
+      "y": 425.13807093788927,
+      "color": "#4a9eff",
+      "shape": "rounded-rect"
+    },
+    {
+      "id": "n1780213426890_514h5g",
+      "title": "同级词条",
+      "content": "",
+      "x": 849.3428117285154,
+      "y": 550.9375996088695,
+      "color": "#4a9eff",
+      "shape": "rounded-rect"
+    },
+    {
+      "id": "n1780213427190_t2p7qk",
+      "title": "同级词条",
+      "content": "",
+      "x": 942.7387368052521,
+      "y": 430.8667530779439,
+      "color": "#4a9eff",
+      "shape": "rounded-rect"
+    }
+  ],
+  "links": [
+    {
+      "id": "n1780213398709_kix982",
+      "source": "n1780213398709_3ktew9",
+      "target": "n1780213398709_u5tkm0",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "source_to_target",
+      "strength": 0.7
+    },
+    {
+      "id": "n1780213398709_3etbm3",
+      "source": "n1780213398709_3ktew9",
+      "target": "n1780213398709_mwarvt",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "source_to_target",
+      "strength": 0.7
+    },
+    {
+      "id": "n1780213398709_lxngvk",
+      "source": "n1780213398709_3ktew9",
+      "target": "n1780213398709_ixw8ah",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "source_to_target",
+      "strength": 0.7
+    },
+    {
+      "id": "n1780213398709_ch4r75",
+      "source": "n1780213398709_3ktew9",
+      "target": "n1780213398709_u5g78o",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "source_to_target",
+      "strength": 0.7
+    },
+    {
+      "id": "n1780213398709_efx7qz",
+      "source": "n1780213398709_3ktew9",
+      "target": "n1780213398709_zymapw",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "source_to_target",
+      "strength": 0.7
+    },
+    {
+      "id": "n1780213398709_czncc4",
+      "source": "n1780213398709_mwarvt",
+      "target": "n1780213398709_u5g78o",
+      "type": "free",
+      "label": "相关",
+      "direction": "bidirectional",
+      "strength": 0.4
+    },
+    {
+      "id": "n1780213398709_vbgqv8",
+      "source": "n1780213398709_mwarvt",
+      "target": "n1780213398709_zymapw",
+      "type": "free",
+      "label": "基于",
+      "direction": "source_to_target",
+      "strength": 0.6
+    },
+    {
+      "id": "n1780213398709_4cquy1",
+      "source": "n1780213398709_ixw8ah",
+      "target": "n1780213398709_zymapw",
+      "type": "free",
+      "label": "核心架构",
+      "direction": "source_to_target",
+      "strength": 0.7
+    },
+    {
+      "id": "n1780213424895_4aje27",
+      "source": "n1780213398709_3ktew9",
+      "target": "n1780213424895_fiv9xf",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780213425705_qowkgi",
+      "source": "n1780213398709_3ktew9",
+      "target": "n1780213425705_sdxvot",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780213425983_kzp3hv",
+      "source": "n1780213398709_3ktew9",
+      "target": "n1780213425983_mkldad",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780213426283_w8puuj",
+      "source": "n1780213398709_3ktew9",
+      "target": "n1780213426283_4hf2fw",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780213426591_edujv5",
+      "source": "n1780213398709_3ktew9",
+      "target": "n1780213426591_qkt4x3",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780213426890_91t94v",
+      "source": "n1780213398709_3ktew9",
+      "target": "n1780213426890_514h5g",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    },
+    {
+      "id": "n1780213427190_w9otb5",
+      "source": "n1780213398709_3ktew9",
+      "target": "n1780213427190_t2p7qk",
+      "type": "hierarchical",
+      "label": "包含",
+      "direction": "bidirectional",
+      "strength": 0.5
+    }
+  ]
+}
