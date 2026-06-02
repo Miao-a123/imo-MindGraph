@@ -149,17 +149,11 @@ svg{width:100%;height:100%}
   <button onclick="KG.exportJSON()">导出</button>
   <button onclick="KG.importJSON()">导入</button>
   <span class="sep"></span>
+  <button onclick="KG.openCanvasPanel()" style="background:#303060">📋 画布</button>
   <input type="text" id="graph-search" placeholder="搜索节点..." style="padding:5px 10px;border:1px solid #3a3a5c;background:#252540;color:#c0c0d0;border-radius:6px;font-size:13px;width:140px;outline:none" oninput="KG.onSearchInput(this.value)">
   <button id="btn-arrows" class="active" onclick="KG.toggleArrows()" title="箭头显示">箭头</button>
   <button id="btn-orphan" onclick="KG.toggleOrphanFilter()" title="孤立文件">孤立</button>
   <button id="btn-animate" onclick="KG.toggleAnimation()" title="播放动画">动画</button>
-  <span class="sep"></span>
-  <select id="canvas-selector" onchange="KG.switchCanvas(this.value)" style="background:#252540;border:1px solid #3a3a5c;color:#c0c0d0;padding:5px 8px;border-radius:6px;font-size:13px;outline:none;max-width:120px">
-    <option value="default">默认画布</option>
-  </select>
-  <button id="btn-new-canvas" onclick="KG.createCanvas()" title="新建画布" style="padding:5px 10px">+画布</button>
-  <button id="btn-merge" onclick="KG.toggleMergeMode()" title="融合模式" style="padding:5px 10px">融合</button>
-  <span id="merge-indicator" style="display:none;color:#9a6acc;font-size:12px;margin-left:8px">融合中</span>
   <span class="sep"></span>
   <span class="hint" id="status-hint">就绪</span>
 </div>
@@ -400,6 +394,24 @@ svg{width:100%;height:100%}
     <button class="btn-danger" onclick="KG.deleteSelectedNodes()">删除选中</button>
     <button class="btn-cancel" onclick="KG.closeBatchModal()">关闭</button>
     <button class="btn-primary" onclick="KG.applyBatch()">应用</button>
+  </div>
+</div>
+
+<!-- 画布管理面板 -->
+<div id="canvas-panel" class="side-panel" style="width:320px">
+  <div class="side-header">
+    <h3>画布管理</h3>
+    <button class="side-close" onclick="KG.closeCanvasPanel()">&times;</button>
+  </div>
+  <div class="side-body">
+    <div style="margin-bottom:16px">
+      <button onclick="KG.createCanvas()" style="width:100%;padding:10px;background:#5a5acc;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px">+ 新建画布</button>
+    </div>
+    <div id="canvas-list"></div>
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid #2a2a4a">
+      <p style="font-size:12px;color:#8a8aaa;margin-bottom:8px">已选画布：<span id="selected-canvas-count">0</span></p>
+      <button id="btn-merge-selected" onclick="KG.mergeSelectedCanvases()" style="width:100%;padding:10px;background:#6a5acd;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px">融合并显示</button>
+    </div>
   </div>
 </div>
 
@@ -1997,17 +2009,8 @@ const KG = {
       if (r && r.ok && r.canvases) {
         this.canvases = r.canvases;
         this.currentCanvasId = r.currentCanvasId || 'default';
-        this._updateCanvasSelector();
       }
     } catch(e) { console.warn('加载画布列表失败', e); }
-  },
-
-  _updateCanvasSelector() {
-    const sel = document.getElementById('canvas-selector');
-    if (!sel) return;
-    sel.innerHTML = this.canvases.map(c =>
-      `<option value="${c.id}" ${c.id === this.currentCanvasId ? 'selected' : ''}>${c.title}</option>`
-    ).join('');
   },
 
   async switchCanvas(canvasId) {
@@ -2017,6 +2020,65 @@ const KG = {
     }
     this.currentCanvasId = canvasId;
     await this.loadData();
+  },
+
+  // ========== 画布侧边栏 ==========
+  openCanvasPanel() {
+    this._loadCanvasPanel();
+    document.getElementById('canvas-panel').classList.add('open');
+  },
+
+  closeCanvasPanel() {
+    document.getElementById('canvas-panel').classList.remove('open');
+  },
+
+  async _loadCanvasPanel() {
+    if (this.canvases.length === 0) {
+      await this.loadCanvasList();
+    }
+    const list = document.getElementById('canvas-list');
+    list.innerHTML = this.canvases.map(c => `
+      <div class="canvas-item" style="padding:12px;background:#252540;border-radius:8px;margin-bottom:8px;cursor:pointer;border:2px solid ${c.id === this.currentCanvasId ? '#5a5acc' : 'transparent'}" onclick="KG.switchCanvas('${c.id}')">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <input type="checkbox" onclick="event.stopPropagation();KG.toggleCanvasSelect('${c.id}')" ${this._selectedCanvasIds?.has(c.id) ? 'checked' : ''} style="accent-color:#9a6acc">
+          <span style="font-size:14px;color:#c0c0d0;font-weight:500">${c.title}</span>
+          ${c.id === this.currentCanvasId ? '<span style="font-size:10px;background:#5a5acc;color:#fff;padding:2px 6px;border-radius:4px">当前</span>' : ''}
+        </div>
+        <div style="font-size:11px;color:#8a8aaa">${c.nodeCount || 0} 节点 · ${c.linkCount || 0} 连接</div>
+      </div>
+    `).join('');
+    const count = this._selectedCanvasIds?.size || 0;
+    document.getElementById('selected-canvas-count').textContent = count;
+  },
+
+  _selectedCanvasIds: new Set(),
+
+  toggleCanvasSelect(canvasId) {
+    if (this._selectedCanvasIds.has(canvasId)) {
+      this._selectedCanvasIds.delete(canvasId);
+    } else {
+      this._selectedCanvasIds.add(canvasId);
+    }
+    this._loadCanvasPanel();
+  },
+
+  async mergeSelectedCanvases() {
+    const ids = Array.from(this._selectedCanvasIds);
+    if (ids.length < 2) {
+      this.toast('请至少选择2个画布进行融合');
+      return;
+    }
+    // 切换到第一个画布作为基础
+    this.currentCanvasId = ids[0];
+    this.mergedCanvasIds = ids.slice(1);
+    this.isMergedMode = true;
+    this._selectedCanvasIds.clear();
+
+    await this._loadMergedData();
+    this.closeCanvasPanel();
+    document.getElementById('merge-indicator').style.display = 'inline';
+    document.getElementById('merge-indicator').textContent = '融合中: ' + ids.join(', ');
+    this.toast('已进入融合模式，显示 ' + ids.length + ' 个画布');
   },
 
   async createCanvas() {
