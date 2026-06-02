@@ -1856,6 +1856,7 @@ const KG = {
       const idx = this.colorSchemes.indexOf(node.color);
       node.color = this.colorSchemes[(idx+1) % this.colorSchemes.length];
       this.render();
+      this.saveData();
     }
     else if (action.startsWith('shape-') && nid) {
       const shape = action.replace('shape-','');
@@ -1947,7 +1948,7 @@ const KG = {
   // ========== 持久化 ==========
   async saveData() {
     const data = {
-      nodes: this.nodes.map(n => ({ id:n.id, title:n.title, content:n.content, x:n.x, y:n.y, color:n.color, shape:n.shape })),
+      nodes: this.nodes.map(n => ({ id:n.id, title:n.title, content:n.content, x:n.x, y:n.y, color:n.color, shape:n.shape, sizeScale:n.sizeScale })),
       links: this.links.map(l => ({ id:l.id, source:l.source.id, target:l.target.id, type:l.type, label:l.label, direction:l.direction, strength:l.strength }))
     };
     // 优先后端，失败则降级 localStorage
