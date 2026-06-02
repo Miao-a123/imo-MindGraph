@@ -76,9 +76,13 @@ svg{width:100%;height:100%}
 .link-line{fill:none;stroke:#4a4a7a;stroke-width:2px;transition:all .3s;cursor:pointer}
 .link-line.hierarchical{stroke:#5a8a5a}
 .link-line.free{stroke:#7a5a8a;stroke-dasharray:7,4}
+.link-line.cross-canvas{stroke:#9a6acc;stroke-dasharray:7,4}
 .link-line:hover{stroke-width:4px;stroke:#a0a0cc}
 .link-line.dragging{stroke:#f0a040;stroke-width:3px;stroke-dasharray:none;pointer-events:none}
 .link-label{fill:#8a8aaa;font-size:10px;text-anchor:middle;pointer-events:none}
+
+/* 画布节点 */
+.canvas-node{stroke:#6a5acd;stroke-width:2px;stroke-dasharray:7,4;fill:rgba(106,90,205,0.15)}
 
 /* 弹窗 */
 .modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center}
@@ -149,6 +153,13 @@ svg{width:100%;height:100%}
   <button id="btn-arrows" class="active" onclick="KG.toggleArrows()" title="箭头显示">箭头</button>
   <button id="btn-orphan" onclick="KG.toggleOrphanFilter()" title="孤立文件">孤立</button>
   <button id="btn-animate" onclick="KG.toggleAnimation()" title="播放动画">动画</button>
+  <span class="sep"></span>
+  <select id="canvas-selector" onchange="KG.switchCanvas(this.value)" style="background:#252540;border:1px solid #3a3a5c;color:#c0c0d0;padding:5px 8px;border-radius:6px;font-size:13px;outline:none;max-width:120px">
+    <option value="default">默认画布</option>
+  </select>
+  <button id="btn-new-canvas" onclick="KG.createCanvas()" title="新建画布" style="padding:5px 10px">+画布</button>
+  <button id="btn-merge" onclick="KG.toggleMergeMode()" title="融合模式" style="padding:5px 10px">融合</button>
+  <span id="merge-indicator" style="display:none;color:#9a6acc;font-size:12px;margin-left:8px">融合中</span>
   <span class="sep"></span>
   <span class="hint" id="status-hint">就绪</span>
 </div>
@@ -476,6 +487,13 @@ const KG = {
   _selStart: null,
   _selectedNodeIds: new Set(),
 
+  // 多画布支持
+  canvases: [],            // 画布列表
+  currentCanvasId: 'default',
+  mergedCanvasIds: [],     // 当前融合的画布 ID 列表
+  isMergedMode: false,
+  _canvasNodeMap: {},      // 画布 ID → 画布节点对象
+
   // 全局设置
   settings: {
     defaultColor: '#4a9eff',
@@ -525,6 +543,15 @@ const KG = {
       const r = await fetch(this.API_BASE + path, {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify(data), signal: AbortSignal.timeout(3000)
+      });
+      if (!r.ok) throw new Error(r.status);
+      return await r.json();
+    } catch(e) { return null; }
+  },
+  async _apiDelete(path) {
+    try {
+      const r = await fetch(this.API_BASE + path, {
+        method: 'DELETE', signal: AbortSignal.timeout(3000)
       });
       if (!r.ok) throw new Error(r.status);
       return await r.json();
@@ -589,6 +616,7 @@ const KG = {
   async init() {
     await this._checkBackend();
     if (this._backendOnline) {
+      await this.loadCanvasList();
       await this.loadSettingsFromBackend();
     } else {
       this.loadSettings();
@@ -1002,6 +1030,8 @@ const KG = {
         return this.shapePaths[s](w, h);
       })
       .attr('fill', d => {
+        // 画布节点特殊样式
+        if (d.isCanvasNode) return 'rgba(106,90,205,0.15)';
         // 颜色组匹配
         for (const cg of this._colorGroups) {
           const keywords = cg.filter.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
@@ -1012,6 +1042,7 @@ const KG = {
       })
       .attr('class', d => {
         let cls = 'node-shape';
+        if (d.isCanvasNode) cls += ' canvas-node';
         if (d.id === this.highlightedNodeId) cls += ' highlighted';
         if (this._selectedNodeIds.has(d.id)) cls += ' selected';
         return cls;
@@ -1455,6 +1486,20 @@ const KG = {
     this.detailNodeId = nodeId;
     const node = this.nodes.find(n => n.id===nodeId);
     if (!node) return;
+    // 画布节点不可编辑
+    if (node.isCanvasNode) {
+      document.getElementById('detail-title').textContent = node.title;
+      document.getElementById('detail-node-title').value = node.title;
+      document.getElementById('detail-node-content').value = node.content || '';
+      document.getElementById('detail-node-content').disabled = true;
+      document.getElementById('detail-node-shape').value = node.shape;
+      document.getElementById('detail-node-shape').disabled = true;
+      document.getElementById('detail-node-size').disabled = true;
+    } else {
+      document.getElementById('detail-node-content').disabled = false;
+      document.getElementById('detail-node-shape').disabled = false;
+      document.getElementById('detail-node-size').disabled = false;
+    }
     document.getElementById('detail-title').textContent = `编辑 — ${node.title}`;
     document.getElementById('detail-node-title').value = node.title;
     document.getElementById('detail-node-content').value = node.content || '';
@@ -1945,37 +1990,239 @@ const KG = {
     this.saveData();
   },
 
+  // ========== 多画布支持 ==========
+  async loadCanvasList() {
+    try {
+      const r = await this._apiGet('/api/canvases');
+      if (r && r.ok && r.canvases) {
+        this.canvases = r.canvases;
+        this.currentCanvasId = r.currentCanvasId || 'default';
+        this._updateCanvasSelector();
+      }
+    } catch(e) { console.warn('加载画布列表失败', e); }
+  },
+
+  _updateCanvasSelector() {
+    const sel = document.getElementById('canvas-selector');
+    if (!sel) return;
+    sel.innerHTML = this.canvases.map(c =>
+      `<option value="${c.id}" ${c.id === this.currentCanvasId ? 'selected' : ''}>${c.title}</option>`
+    ).join('');
+  },
+
+  async switchCanvas(canvasId) {
+    if (this.isMergedMode) {
+      this.isMergedMode = false;
+      document.getElementById('merge-indicator').style.display = 'none';
+    }
+    this.currentCanvasId = canvasId;
+    await this.loadData();
+  },
+
+  async createCanvas() {
+    const title = prompt('请输入画布名称：', '新画布');
+    if (!title) return;
+    const id = 'canvas_' + Date.now();
+    try {
+      const r = await this._apiPost('/api/canvases', { id, title });
+      if (r && r.ok) {
+        await this.loadCanvasList();
+        await this.switchCanvas(id);
+        this.toast('画布已创建：' + title);
+      }
+    } catch(e) { this.toast('创建画布失败'); }
+  },
+
+  async deleteCurrentCanvas() {
+    if (this.currentCanvasId === 'default') {
+      this.toast('默认画布不能删除');
+      return;
+    }
+    if (!confirm('确定删除当前画布？此操作不可恢复。')) return;
+    try {
+      const r = await this._apiDelete(`/api/canvas/${this.currentCanvasId}`);
+      if (r && r.ok) {
+        await this.loadCanvasList();
+        await this.switchCanvas('default');
+        this.toast('画布已删除');
+      }
+    } catch(e) { this.toast('删除画布失败'); }
+  },
+
+  // ========== 画布节点 & 融合模式 ==========
+  isCanvasNode(node) {
+    return node.isCanvasNode === true || node.canvasRef != null;
+  },
+
+  getCanvasId(node) {
+    return node.canvasId || 'default';
+  },
+
+  async toggleMergeMode() {
+    if (this.isMergedMode) {
+      // 退出融合模式
+      this.isMergedMode = false;
+      this.mergedCanvasIds = [];
+      document.getElementById('merge-indicator').style.display = 'none';
+      await this.loadData();
+      this.toast('已退出融合模式');
+    } else {
+      // 进入融合模式 - 选择要融合的画布
+      const otherCanvases = this.canvases.filter(c => c.id !== this.currentCanvasId);
+      if (otherCanvases.length === 0) {
+        this.toast('没有其他画布可融合');
+        return;
+      }
+      const selected = prompt('输入要融合的画布 ID（多个用逗号分隔）：\n' + otherCanvases.map(c => c.id + ': ' + c.title).join('\n'));
+      if (!selected) return;
+
+      const ids = selected.split(',').map(s => s.trim()).filter(Boolean);
+      if (ids.length === 0) return;
+
+      this.mergedCanvasIds = ids;
+      this.isMergedMode = true;
+      document.getElementById('merge-indicator').style.display = 'inline';
+      document.getElementById('merge-indicator').textContent = '融合中: ' + ids.join(', ');
+
+      await this._loadMergedData();
+      this.toast('已进入融合模式');
+    }
+  },
+
+  async _loadMergedData() {
+    // 加载所有融合画布的数据
+    const allNodes = [], allLinks = [];
+    const nodesMap = {};
+
+    // 首先添加当前画布的节点
+    for (const n of this.nodes) {
+      if (!this.isCanvasNode(n)) {
+        n.canvasId = n.canvasId || this.currentCanvasId;
+        allNodes.push(n);
+        nodesMap[n.id] = n;
+      }
+    }
+
+    // 加载其他融合画布
+    for (const cid of this.mergedCanvasIds) {
+      const cv = this.canvases.find(c => c.id === cid);
+      if (!cv) continue;
+
+      // 创建画布节点
+      const canvasNode = {
+        id: 'canvas-node-' + cid,
+        title: cv.title,
+        content: cv.nodeCount + ' 节点 · ' + cv.linkCount + ' 连接',
+        canvasId: 'merged',
+        isCanvasNode: true,
+        canvasRef: cid,
+        shape: 'rounded-rect',
+        color: '#6a5acd',
+        sizeScale: 1.5,
+        x: Math.random() * 400 - 200,
+        y: Math.random() * 400 - 200
+      };
+      allNodes.push(canvasNode);
+      nodesMap[canvasNode.id] = canvasNode;
+      this._canvasNodeMap[cid] = canvasNode;
+
+      try {
+        const r = await this._apiGet(`/api/canvas/${cid}`);
+        if (r && r.ok && r.data) {
+          for (const n of r.data.nodes || []) {
+            if (!this.isCanvasNode(n)) {
+              n.canvasId = cid;
+              allNodes.push(n);
+              nodesMap[n.id] = n;
+            }
+          }
+          for (const l of r.data.links || []) {
+            l.crossCanvas = true;
+            allLinks.push(l);
+          }
+        }
+      } catch(e) { console.warn('加载画布', cid, '失败', e); }
+    }
+
+    // 处理跨画布边：在非融合模式下，边连接到画布节点
+    if (!this.isMergedMode) {
+      const newLinks = [];
+      for (const l of allLinks) {
+        const sCanvas = this.getCanvasId(nodesMap[l.source.id || l.source] || {});
+        const tCanvas = this.getCanvasId(nodesMap[l.target.id || l.target] || {});
+        if (sCanvas !== tCanvas) {
+          // 找到源和目标所在的画布节点
+          const sCanvasNode = this._canvasNodeMap[sCanvas];
+          const tCanvasNode = this._canvasNodeMap[tCanvas];
+          if (sCanvasNode && tCanvasNode) {
+            newLinks.push({
+              id: l.id + '_src',
+              source: l.source,
+              target: sCanvasNode,
+              type: l.type,
+              label: l.label || '相关',
+              direction: 'bidirectional',
+              strength: l.strength || 0.5,
+              crossCanvas: true
+            });
+            newLinks.push({
+              id: l.id + '_tgt',
+              source: tCanvasNode,
+              target: l.target,
+              type: l.type,
+              label: '',
+              direction: 'bidirectional',
+              strength: l.strength || 0.5,
+              crossCanvas: true
+            });
+          }
+        } else {
+          newLinks.push(l);
+        }
+      }
+      this.links = newLinks;
+    } else {
+      this.links = allLinks;
+    }
+
+    this.nodes = allNodes;
+    this.render();
+  },
+
   // ========== 持久化 ==========
   async saveData() {
     const data = {
-      nodes: this.nodes.map(n => ({ id:n.id, title:n.title, content:n.content, x:n.x, y:n.y, color:n.color, shape:n.shape, sizeScale:n.sizeScale })),
-      links: this.links.map(l => ({ id:l.id, source:l.source.id, target:l.target.id, type:l.type, label:l.label, direction:l.direction, strength:l.strength }))
+      nodes: this.nodes.map(n => ({ id:n.id, title:n.title, content:n.content, x:n.x, y:n.y, color:n.color, shape:n.shape, sizeScale:n.sizeScale, canvasId:n.canvasId })),
+      links: this.links.map(l => ({ id:l.id, source:l.source.id, target:l.target.id, type:l.type, label:l.label, direction:l.direction, strength:l.strength, crossCanvas:l.crossCanvas }))
     };
     // 优先后端，失败则降级 localStorage
     if (this._backendOnline) {
-      const r = await this._apiPost('/api/data', { data });
+      const apiPath = this.currentCanvasId === 'default' ? '/api/data' : `/api/canvas/${this.currentCanvasId}`;
+      const r = await this._apiPost(apiPath, { data });
       if (r && r.ok) { this.toast('已保存到后端'); return; }
       this._backendOnline = false;
     }
     try {
-      localStorage.setItem('kg-data-v2', JSON.stringify(data));
+      localStorage.setItem('kg-canvas-' + this.currentCanvasId, JSON.stringify(data));
       this.toast('已保存（本地）');
     } catch(e) { this.toast('保存失败：存储不足'); }
   },
 
   loadData() {
     let loaded = false;
+    const canvasKey = 'kg-canvas-' + this.currentCanvasId;
 
     // 同步从 localStorage 加载
     try {
-      const raw = localStorage.getItem('kg-data-v2') || localStorage.getItem('kg-data');
+      const raw = localStorage.getItem(canvasKey) || localStorage.getItem('kg-data-v2') || localStorage.getItem('kg-data');
       if (raw) {
         const data = JSON.parse(raw);
-        this.nodes = (data.nodes || []).map(n => ({ ...n, shape: n.shape || 'rounded-rect' }));
+        this.nodes = (data.nodes || []).map(n => ({ ...n, shape: n.shape || 'rounded-rect', canvasId: n.canvasId || this.currentCanvasId }));
         this.links = (data.links || []).map(l => {
           l.source = this.nodes.find(n => n.id===l.source) || l.source;
           l.target = this.nodes.find(n => n.id===l.target) || l.target;
           l.direction = l.direction || 'bidirectional';
+          l.crossCanvas = l.crossCanvas || false;
           return l;
         });
         loaded = true;
@@ -1985,14 +2232,16 @@ const KG = {
     // 如果后端在线，对比后端数据
     if (this._backendOnline) {
       (async () => {
-        const r = await this._apiGet('/api/data');
+        const apiPath = this.currentCanvasId === 'default' ? '/api/data' : `/api/canvas/${this.currentCanvasId}`;
+        const r = await this._apiGet(apiPath);
         if (r && r.ok && r.data && r.data.nodes && r.data.nodes.length > 0) {
           // 后端有数据，优先用后端
-          this.nodes = r.data.nodes.map(n => ({ ...n, shape: n.shape || 'rounded-rect' }));
+          this.nodes = r.data.nodes.map(n => ({ ...n, shape: n.shape || 'rounded-rect', canvasId: n.canvasId || this.currentCanvasId }));
           this.links = (r.data.links || []).map(l => {
             l.source = this.nodes.find(n => n.id===l.source) || l.source;
             l.target = this.nodes.find(n => n.id===l.target) || l.target;
             l.direction = l.direction || 'bidirectional';
+            l.crossCanvas = l.crossCanvas || false;
             return l;
           });
           this.render();
