@@ -2184,11 +2184,15 @@ const KG = {
     // 加载所有融合画布的数据
     const allNodes = [], allLinks = [];
     const nodesMap = {};
+    this._canvasNodeMap = {};
+    const canvasCenters = {};
 
     // 首先加载当前画布的数据
     const currentApiPath = this.currentCanvasId === 'default' ? '/api/data' : `/api/canvas/${this.currentCanvasId}`;
     const currentData = await this._apiGet(currentApiPath);
     if (currentData && currentData.ok && currentData.data) {
+      // 当前画布位置在中心
+      canvasCenters[this.currentCanvasId] = { x: 0, y: 0 };
       for (const n of currentData.data.nodes || []) {
         if (!this.isCanvasNode(n)) {
           n.canvasId = this.currentCanvasId;
@@ -2198,14 +2202,27 @@ const KG = {
       }
       for (const l of currentData.data.links || []) {
         l.crossCanvas = false;
+        l.source = nodesMap[l.source.id] || l.source;
+        l.target = nodesMap[l.target.id] || l.target;
         allLinks.push(l);
       }
     }
 
-    // 加载其他融合画布
+    // 为每个融合画布创建画布节点，并设置位置
+    const positions = [
+      { x: -500, y: -300 },
+      { x: 500, y: -300 },
+      { x: -500, y: 300 },
+      { x: 500, y: 300 }
+    ];
+    let posIdx = 0;
+
     for (const cid of this.mergedCanvasIds) {
       const cv = this.canvases.find(c => c.id === cid);
       if (!cv) continue;
+
+      const pos = positions[posIdx++] || { x: Math.random() * 800 - 400, y: Math.random() * 600 - 300 };
+      canvasCenters[cid] = pos;
 
       // 创建画布节点
       const canvasNode = {
@@ -2217,9 +2234,9 @@ const KG = {
         canvasRef: cid,
         shape: 'rounded-rect',
         color: '#6a5acd',
-        sizeScale: 1.5,
-        x: Math.random() * 400 - 200,
-        y: Math.random() * 400 - 200
+        sizeScale: 2.0,
+        x: pos.x,
+        y: pos.y
       };
       allNodes.push(canvasNode);
       nodesMap[canvasNode.id] = canvasNode;
@@ -2228,50 +2245,56 @@ const KG = {
       try {
         const r = await this._apiGet(`/api/canvas/${cid}`);
         if (r && r.ok && r.data) {
-          for (const n of r.data.nodes || []) {
+          // 加载子画布节点，位置围绕画布节点分布
+          const childNodes = r.data.nodes || [];
+          childNodes.forEach((n, i) => {
             if (!this.isCanvasNode(n)) {
+              const angle = (i / childNodes.length) * Math.PI * 2;
+              const radius = 150 + Math.random() * 100;
               n.canvasId = cid;
+              n.x = pos.x + Math.cos(angle) * radius;
+              n.y = pos.y + Math.sin(angle) * radius;
               allNodes.push(n);
               nodesMap[n.id] = n;
             }
-          }
+          });
           for (const l of r.data.links || []) {
             l.crossCanvas = true;
-            // 将 link 的 source/target 从 ID 转换为节点对象
-            l.source = nodesMap[l.source] || l.source;
-            l.target = nodesMap[l.target] || l.target;
+            l.source = nodesMap[l.source.id || l.source] || l.source;
+            l.target = nodesMap[l.target.id || l.target] || l.target;
             allLinks.push(l);
           }
         }
       } catch(e) { console.warn('加载画布', cid, '失败', e); }
     }
 
-    // 处理跨画布边：在非融合模式下，边连接到画布节点
+    // 非融合模式下，将跨画布边连接到画布节点
     if (!this.isMergedMode) {
       const newLinks = [];
       for (const l of allLinks) {
-        const sNode = typeof l.source === 'object' ? l.source : nodesMap[l.source];
-        const tNode = typeof l.target === 'object' ? l.target : nodesMap[l.target];
-        const sCanvas = this.getCanvasId(sNode || {});
-        const tCanvas = this.getCanvasId(tNode || {});
-        if (sCanvas !== tCanvas) {
+        const sNode = l.source;
+        const tNode = l.target;
+        const sCanvas = this.getCanvasId(sNode);
+        const tCanvas = this.getCanvasId(tNode);
+        if (sCanvas !== tCanvas && sCanvas !== 'merged' && tCanvas !== 'merged') {
+          // 跨画布边：连接到画布节点
           const sCanvasNode = this._canvasNodeMap[sCanvas];
           const tCanvasNode = this._canvasNodeMap[tCanvas];
           if (sCanvasNode && tCanvasNode) {
             newLinks.push({
-              id: l.id + '_src',
-              source: l.source,
+              id: l.id + '_s',
+              source: sNode,
               target: sCanvasNode,
               type: l.type,
-              label: l.label || '相关',
+              label: l.label || '↔',
               direction: 'bidirectional',
               strength: l.strength || 0.5,
               crossCanvas: true
             });
             newLinks.push({
-              id: l.id + '_tgt',
+              id: l.id + '_t',
               source: tCanvasNode,
-              target: l.target,
+              target: tNode,
               type: l.type,
               label: '',
               direction: 'bidirectional',
