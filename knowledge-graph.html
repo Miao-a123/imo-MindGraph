@@ -2019,6 +2019,8 @@ const KG = {
       this.isMergedMode = false;
       document.getElementById('merge-indicator').style.display = 'none';
     }
+    // 先刷新画布列表，确保 canva 数据是最新的
+    await this.loadCanvasList();
     this.currentCanvasId = canvasId;
     this.mergedCanvasIds = [];
     await this.loadData();
@@ -2086,23 +2088,16 @@ const KG = {
   },
 
   async createCanvas() {
-    console.log('createCanvas called, trying to create:', title);
     const title = prompt('请输入画布名称：', '新画布');
     if (!title) return;
     const id = 'canvas_' + Date.now();
-    console.log('Creating canvas with id:', id);
     try {
       const r = await this._apiPost('/api/canvases', { id, title });
-      console.log('API response:', r);
       if (r && r.ok) {
         await this.loadCanvasList();
-        console.log('After loadCanvasList, canvases:', this.canvases.map(c=>c.id));
         await this.switchCanvas(id);
-        console.log('After switchCanvas, currentCanvasId:', this.currentCanvasId);
-        this._loadCanvasPanel();
         this.toast('画布已创建：' + title);
       } else {
-        console.log('API returned non-ok:', r);
         this.toast('创建画布失败');
       }
     } catch(e) { console.error('Create canvas error:', e); this.toast('创建画布失败'); }
