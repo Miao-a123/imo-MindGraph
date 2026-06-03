@@ -76,13 +76,10 @@ svg{width:100%;height:100%}
 .link-line{fill:none;stroke:#4a4a7a;stroke-width:2px;transition:all .3s;cursor:pointer}
 .link-line.hierarchical{stroke:#5a8a5a}
 .link-line.free{stroke:#7a5a8a;stroke-dasharray:7,4}
-.link-line.cross-canvas{stroke:#9a6acc;stroke-dasharray:7,4}
 .link-line:hover{stroke-width:4px;stroke:#a0a0cc}
 .link-line.dragging{stroke:#f0a040;stroke-width:3px;stroke-dasharray:none;pointer-events:none}
 .link-label{fill:#8a8aaa;font-size:10px;text-anchor:middle;pointer-events:none}
 
-/* 画布节点 */
-.canvas-node{stroke:#6a5acd;stroke-width:2px;stroke-dasharray:7,4;fill:rgba(106,90,205,0.15)}
 
 /* 弹窗 */
 .modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center}
@@ -149,7 +146,7 @@ svg{width:100%;height:100%}
   <button onclick="KG.exportJSON()">导出</button>
   <button onclick="KG.importJSON()">导入</button>
   <span class="sep"></span>
-  <button onclick="KG.openCanvasPanel()" style="background:#303060">📋 画布</button>
+  <button onclick="KG.openFilePanel()" style="background:#303060">📋 文件</button>
   <input type="text" id="graph-search" placeholder="搜索节点..." style="padding:5px 10px;border:1px solid #3a3a5c;background:#252540;color:#c0c0d0;border-radius:6px;font-size:13px;width:140px;outline:none" oninput="KG.onSearchInput(this.value)">
   <button id="btn-arrows" class="active" onclick="KG.toggleArrows()" title="箭头显示">箭头</button>
   <button id="btn-orphan" onclick="KG.toggleOrphanFilter()" title="孤立文件">孤立</button>
@@ -397,21 +394,18 @@ svg{width:100%;height:100%}
   </div>
 </div>
 
-<!-- 画布管理面板 -->
-<div id="canvas-panel" class="side-panel" style="width:320px">
+<!-- 文件管理面板 -->
+<div id="file-panel" class="side-panel" style="width:320px">
   <div class="side-header">
-    <h3>画布管理</h3>
-    <button class="side-close" onclick="KG.closeCanvasPanel()">&times;</button>
+    <h3>文件管理</h3>
+    <button class="side-close" onclick="KG.closeFilePanel()">&times;</button>
   </div>
   <div class="side-body">
-    <div style="margin-bottom:16px">
-      <button onclick="KG.createCanvas()" style="width:100%;padding:10px;background:#5a5acc;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px">+ 新建画布</button>
+    <div style="margin-bottom:16px;display:flex;gap:8px">
+      <button onclick="KG.createFile()" style="flex:1;padding:10px;background:#5a5acc;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px">+ 新建文件</button>
+      <button onclick="KG.importFile()" style="padding:10px;background:#4a7a4a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px">📥 导入</button>
     </div>
-    <div id="canvas-list"></div>
-    <div style="margin-top:20px;padding-top:16px;border-top:1px solid #2a2a4a">
-      <p style="font-size:12px;color:#8a8aaa;margin-bottom:8px">已选画布：<span id="selected-canvas-count">0</span></p>
-      <button id="btn-merge-selected" onclick="KG.mergeSelectedCanvases()" style="width:100%;padding:10px;background:#6a5acd;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px">融合并显示</button>
-    </div>
+    <div id="file-list"></div>
   </div>
 </div>
 
@@ -499,12 +493,9 @@ const KG = {
   _selStart: null,
   _selectedNodeIds: new Set(),
 
-  // 多画布支持
-  canvases: [],            // 画布列表
-  currentCanvasId: 'default',
-  mergedCanvasIds: [],     // 当前融合的画布 ID 列表
-  isMergedMode: false,
-  _canvasNodeMap: {},      // 画布 ID → 画布节点对象
+  // 多文件支持
+  fileList: [],            // 文件列表
+  currentFile: 'default.json',
 
   // 全局设置
   settings: {
@@ -628,7 +619,7 @@ const KG = {
   async init() {
     await this._checkBackend();
     if (this._backendOnline) {
-      await this.loadCanvasList();
+      await this.loadFileList();
       await this.loadSettingsFromBackend();
     } else {
       this.loadSettings();
@@ -1042,8 +1033,6 @@ const KG = {
         return this.shapePaths[s](w, h);
       })
       .attr('fill', d => {
-        // 画布节点特殊样式
-        if (d.isCanvasNode) return 'rgba(106,90,205,0.15)';
         // 颜色组匹配
         for (const cg of this._colorGroups) {
           const keywords = cg.filter.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
@@ -1054,7 +1043,6 @@ const KG = {
       })
       .attr('class', d => {
         let cls = 'node-shape';
-        if (d.isCanvasNode) cls += ' canvas-node';
         if (d.id === this.highlightedNodeId) cls += ' highlighted';
         if (this._selectedNodeIds.has(d.id)) cls += ' selected';
         return cls;
@@ -1498,20 +1486,6 @@ const KG = {
     this.detailNodeId = nodeId;
     const node = this.nodes.find(n => n.id===nodeId);
     if (!node) return;
-    // 画布节点不可编辑
-    if (node.isCanvasNode) {
-      document.getElementById('detail-title').textContent = node.title;
-      document.getElementById('detail-node-title').value = node.title;
-      document.getElementById('detail-node-content').value = node.content || '';
-      document.getElementById('detail-node-content').disabled = true;
-      document.getElementById('detail-node-shape').value = node.shape;
-      document.getElementById('detail-node-shape').disabled = true;
-      document.getElementById('detail-node-size').disabled = true;
-    } else {
-      document.getElementById('detail-node-content').disabled = false;
-      document.getElementById('detail-node-shape').disabled = false;
-      document.getElementById('detail-node-size').disabled = false;
-    }
     document.getElementById('detail-title').textContent = `编辑 — ${node.title}`;
     document.getElementById('detail-node-title').value = node.title;
     document.getElementById('detail-node-content').value = node.content || '';
@@ -2002,451 +1976,155 @@ const KG = {
     this.saveData();
   },
 
-  // ========== 多画布支持 ==========
-  async loadCanvasList() {
+  // ========== 多文件管理 ==========
+  async loadFileList() {
     try {
-      const r = await this._apiGet('/api/canvases');
-      if (r && r.ok && r.canvases) {
-        this.canvases = r.canvases;
-        this.currentCanvasId = r.currentCanvasId || 'default';
+      const r = await this._apiGet('/api/files');
+      if (r && r.ok && r.files) {
+        this.fileList = r.files;
+        if (this.fileList.length > 0 && !this.fileList.find(f => f.id === this.currentFile)) {
+          this.currentFile = this.fileList[0].id;
+        }
       }
-    } catch(e) { console.warn('加载画布列表失败', e); }
+    } catch(e) { console.warn('加载文件列表失败', e); }
   },
 
-  async switchCanvas(canvasId) {
-    console.log('switchCanvas called:', canvasId);
-    if (this.isMergedMode) {
-      this.isMergedMode = false;
-      document.getElementById('merge-indicator').style.display = 'none';
-    }
-    // 先刷新画布列表，确保 canva 数据是最新的
-    await this.loadCanvasList();
-    this.currentCanvasId = canvasId;
-    this.mergedCanvasIds = [];
+  async switchFile(fname) {
+    this.currentFile = fname;
     await this.loadData();
-    this._loadCanvasPanel();
-    console.log('switchCanvas done, currentCanvasId:', this.currentCanvasId);
   },
 
-  // ========== 画布侧边栏 ==========
-  openCanvasPanel() {
-    this._loadCanvasPanel();
-    document.getElementById('canvas-panel').classList.add('open');
+  openFilePanel() {
+    this._loadFilePanel();
+    document.getElementById('file-panel').classList.add('open');
   },
 
-  closeCanvasPanel() {
-    document.getElementById('canvas-panel').classList.remove('open');
+  closeFilePanel() {
+    document.getElementById('file-panel').classList.remove('open');
   },
 
-  async _loadCanvasPanel() {
-    if (this.canvases.length === 0) {
-      await this.loadCanvasList();
-    }
-    const list = document.getElementById('canvas-list');
-    list.innerHTML = this.canvases.map(c => `
-      <div class="canvas-item" style="padding:12px;background:#252540;border-radius:8px;margin-bottom:8px;cursor:pointer;border:2px solid ${c.id === this.currentCanvasId ? '#5a5acc' : 'transparent'}" onclick="KG.switchCanvas('${c.id}')">
+  async _loadFilePanel() {
+    await this.loadFileList();
+    const list = document.getElementById('file-list');
+    list.innerHTML = this.fileList.map(f => `
+      <div class="canvas-item" style="padding:12px;background:#252540;border-radius:8px;margin-bottom:8px;cursor:pointer;border:2px solid ${f.id === this.currentFile ? '#5a5acc' : 'transparent'}" onclick="KG.switchFile('${f.id}')">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-          <input type="checkbox" onclick="event.stopPropagation();KG.toggleCanvasSelect('${c.id}')" ${this._selectedCanvasIds?.has(c.id) ? 'checked' : ''} style="accent-color:#9a6acc">
-          <span style="font-size:14px;color:#c0c0d0;font-weight:500;flex:1">${c.title}</span>
-          ${c.id === this.currentCanvasId ? '<span style="font-size:10px;background:#5a5acc;color:#fff;padding:2px 6px;border-radius:4px">当前</span>' : ''}
-          ${c.id !== 'default' ? '<button onclick="event.stopPropagation();KG.deleteCanvas(\'' + c.id + '\')" style="background:#8a3a3a;color:#fff;border:none;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">删除</button>' : ''}
+          <span style="font-size:14px;color:#c0c0d0;font-weight:500;flex:1">${f.title}</span>
+          ${f.id === this.currentFile ? '<span style="font-size:10px;background:#5a5acc;color:#fff;padding:2px 6px;border-radius:4px">当前</span>' : ''}
+          ${f.id !== 'default.json' ? '<button onclick="event.stopPropagation();KG.deleteFile(\'' + f.id + '\')" style="background:#8a3a3a;color:#fff;border:none;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">删除</button>' : ''}
         </div>
-        <div style="font-size:11px;color:#8a8aaa">${c.nodeCount || 0} 节点 · ${c.linkCount || 0} 连接</div>
+        <div style="font-size:11px;color:#8a8aaa">${f.nodeCount || 0} 节点 · ${f.linkCount || 0} 连接</div>
       </div>
     `).join('');
-    const count = this._selectedCanvasIds?.size || 0;
-    document.getElementById('selected-canvas-count').textContent = count;
   },
 
-  _selectedCanvasIds: new Set(),
-
-  toggleCanvasSelect(canvasId) {
-    if (this._selectedCanvasIds.has(canvasId)) {
-      this._selectedCanvasIds.delete(canvasId);
-    } else {
-      this._selectedCanvasIds.add(canvasId);
-    }
-    this._loadCanvasPanel();
-  },
-
-  async mergeSelectedCanvases() {
-    const ids = Array.from(this._selectedCanvasIds);
-    if (ids.length < 2) {
-      this.toast('请至少选择2个画布进行融合');
-      return;
-    }
-
-    // 创建融合画布名称
-    const titles = ids.map(id => {
-      const cv = this.canvases.find(c => c.id === id);
-      return cv ? cv.title : id;
-    });
-    const mergedTitle = titles.join(' + ');
-
-    // 创建融合画布ID
-    const mergedId = 'merged_' + Date.now();
-
-    try {
-      // 创建融合画布
-      const r = await this._apiPost('/api/canvases', {
-        id: mergedId,
-        title: mergedTitle,
-        isMerged: true,
-        sourceCanvases: ids
-      });
-
-      if (r && r.ok) {
-        // 更新状态
-        this.mergedCanvasIds = ids;
-        this.currentCanvasId = mergedId;
-        this.isMergedMode = true;
-        this._selectedCanvasIds.clear();
-
-        await this.loadCanvasList();
-        await this._loadMergedData();
-
-        this.closeCanvasPanel();
-        document.getElementById('merge-indicator').style.display = 'inline';
-        document.getElementById('merge-indicator').textContent = '融合: ' + mergedTitle;
-        this.toast('已创建融合画布: ' + mergedTitle);
-      } else {
-        this.toast('创建融合画布失败');
-      }
-    } catch(e) { console.error('Merge error:', e); this.toast('创建融合画布失败'); }
-  },
-
-  async createCanvas() {
-    const title = prompt('请输入画布名称：', '新画布');
+  async createFile() {
+    const title = prompt('请输入文件名称：', '新文件');
     if (!title) return;
-    const id = 'canvas_' + Date.now();
     try {
-      const r = await this._apiPost('/api/canvases', { id, title });
+      const r = await this._apiPost('/api/files', { title });
       if (r && r.ok) {
-        await this.loadCanvasList();
-        await this.switchCanvas(id);
-        this.toast('画布已创建：' + title);
+        await this.switchFile(r.file.id);
+        this.toast('文件已创建：' + title);
       } else {
-        this.toast('创建画布失败');
+        this.toast('创建文件失败');
       }
-    } catch(e) { console.error('Create canvas error:', e); this.toast('创建画布失败'); }
+    } catch(e) { console.error('Create file error:', e); this.toast('创建文件失败'); }
   },
 
-  async deleteCurrentCanvas() {
-    if (this.currentCanvasId === 'default') {
-      this.toast('默认画布不能删除');
-      return;
-    }
-    if (!confirm('确定删除当前画布？此操作不可恢复。')) return;
+  async deleteFile(fname) {
+    if (fname === 'default.json') { this.toast('默认文件不能删除'); return; }
+    if (!confirm('确定删除该文件？此操作不可恢复。')) return;
     try {
-      const r = await this._apiDelete(`/api/canvas/${this.currentCanvasId}`);
+      const r = await this._apiDelete(`/api/files/${fname}`);
       if (r && r.ok) {
-        await this.loadCanvasList();
-        await this.switchCanvas('default');
-        this.toast('画布已删除');
-      }
-    } catch(e) { this.toast('删除画布失败'); }
-  },
-
-  async deleteCanvas(canvasId) {
-    if (canvasId === 'default') {
-      this.toast('默认画布不能删除');
-      return;
-    }
-    if (!confirm('确定删除该画布？此操作不可恢复。')) return;
-    try {
-      const r = await this._apiDelete(`/api/canvas/${canvasId}`);
-      if (r && r.ok) {
-        await this.loadCanvasList();
-        if (this.currentCanvasId === canvasId) {
-          await this.switchCanvas('default');
-        } else {
-          this._loadCanvasPanel();
+        if (this.currentFile === fname) {
+          await this.switchFile('default.json');
         }
-        this.toast('画布已删除');
+        this.toast('文件已删除');
       }
-    } catch(e) { this.toast('删除画布失败'); }
+    } catch(e) { this.toast('删除文件失败'); }
   },
 
-  // ========== 画布节点 & 融合模式 ==========
-  isCanvasNode(node) {
-    return node.isCanvasNode === true || node.canvasRef != null;
-  },
-
-  getCanvasId(node) {
-    return node.canvasId || 'default';
-  },
-
-  async toggleMergeMode() {
-    if (this.isMergedMode) {
-      // 退出融合模式
-      this.isMergedMode = false;
-      this.mergedCanvasIds = [];
-      document.getElementById('merge-indicator').style.display = 'none';
-      await this.loadData();
-      this.toast('已退出融合模式');
-    } else {
-      // 进入融合模式 - 选择要融合的画布
-      const otherCanvases = this.canvases.filter(c => c.id !== this.currentCanvasId);
-      if (otherCanvases.length === 0) {
-        this.toast('没有其他画布可融合');
-        return;
-      }
-      const selected = prompt('输入要融合的画布 ID（多个用逗号分隔）：\n' + otherCanvases.map(c => c.id + ': ' + c.title).join('\n'));
-      if (!selected) return;
-
-      const ids = selected.split(',').map(s => s.trim()).filter(Boolean);
-      if (ids.length === 0) return;
-
-      this.mergedCanvasIds = ids;
-      this.isMergedMode = true;
-      document.getElementById('merge-indicator').style.display = 'inline';
-      document.getElementById('merge-indicator').textContent = '融合中: ' + ids.join(', ');
-
-      await this._loadMergedData();
-      this.toast('已进入融合模式');
-    }
-  },
-
-  async _loadMergedData() {
-    const allNodes = [], allLinks = [];
-    const nodesMap = {};
-    this._canvasNodeMap = {};
-
-    // 检查当前画布是否是融合画布
-    const isMergedCanvas = this.currentCanvasId.startsWith('merged_');
-
-    // 加载融合画布的跨画布连接
-    let crossCanvasLinks = [];
-    if (isMergedCanvas) {
-      const mergedData = await this._apiGet(`/api/merged/${this.currentCanvasId}`);
-      if (mergedData && mergedData.ok && mergedData.data) {
-        crossCanvasLinks = mergedData.data.crossCanvasLinks || [];
-      }
-    }
-
-    // 确定要加载的子画布
-    const sourceCanvases = isMergedCanvas ?
-      (this.canvases.find(c => c.id === this.currentCanvasId)?.sourceCanvases || []) :
-      [this.currentCanvasId, ...this.mergedCanvasIds];
-
-    // 画布节点位置
-    const positions = [
-      { x: 0, y: 0 },
-      { x: -500, y: -300 },
-      { x: 500, y: -300 },
-      { x: -500, y: 300 },
-      { x: 500, y: 300 }
-    ];
-
-    // 加载所有子画布的数据
-    for (let idx = 0; idx < sourceCanvases.length; idx++) {
-      const cid = sourceCanvases[idx];
-      const cv = this.canvases.find(c => c.id === cid);
-      if (!cv) continue;
-
-      const pos = positions[idx] || { x: Math.random() * 800 - 400, y: Math.random() * 600 - 300 };
-
-      // 创建画布节点
-      const canvasNode = {
-        id: 'canvas-node-' + cid,
-        title: cv.title,
-        content: cv.nodeCount + ' 节点 · ' + cv.linkCount + ' 连接',
-        canvasId: cid,
-        isCanvasNode: true,
-        canvasRef: cid,
-        shape: 'rounded-rect',
-        color: '#6a5acd',
-        sizeScale: 2.0,
-        x: pos.x,
-        y: pos.y
-      };
-      allNodes.push(canvasNode);
-      nodesMap[canvasNode.id] = canvasNode;
-      this._canvasNodeMap[cid] = canvasNode;
-
-      // 加载子画布节点
-      const apiPath = cid === 'default' ? '/api/data' : `/api/canvas/${cid}`;
-      const r = await this._apiGet(apiPath);
-      if (r && r.ok && r.data) {
-        const childNodes = r.data.nodes || [];
-        childNodes.forEach((n, i) => {
-          if (!this.isCanvasNode(n)) {
-            const angle = (i / Math.max(childNodes.length, 1)) * Math.PI * 2;
-            const radius = 150 + Math.random() * 100;
-            n.canvasId = cid;
-            n.x = pos.x + Math.cos(angle) * radius;
-            n.y = pos.y + Math.sin(angle) * radius;
-            allNodes.push(n);
-            nodesMap[n.id] = n;
-          }
-        });
-        for (const l of r.data.links || []) {
-          // 处理 link 的 source/target
-          const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
-          const targetId = typeof l.target === 'object' ? l.target.id : l.target;
-          l.source = nodesMap[sourceId] || l.source;
-          l.target = nodesMap[targetId] || l.target;
-          l.crossCanvas = false;
-          allLinks.push(l);
+  importFile() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if (!data.nodes) data.nodes = [];
+        if (!data.links) data.links = [];
+        const fname = file.name.replace(/\.json$/,'') + '.json';
+        const r = await this._apiPost('/api/files/import', { name: fname, data });
+        if (r && r.ok) {
+          await this.switchFile(r.file.id);
+          this.toast('已导入: ' + r.file.id);
         }
-      }
-    }
-
-    // 添加跨画布连接（融合模式下直接连接节点，非融合模式下连接到画布节点）
-    for (const ccl of crossCanvasLinks) {
-      const sourceNode = nodesMap[ccl.source.nodeId];
-      const targetNode = nodesMap[ccl.target.nodeId];
-      if (sourceNode && targetNode) {
-        const link = {
-          id: ccl.id,
-          source: sourceNode,
-          target: targetNode,
-          type: 'free',
-          label: ccl.label || '↔',
-          direction: 'bidirectional',
-          strength: 0.5,
-          crossCanvas: true
-        };
-        if (this.isMergedMode) {
-          allLinks.push(link);
-        } else {
-          // 非融合模式：连接到画布节点
-          const sourceCanvasNode = this._canvasNodeMap[ccl.source.canvasId];
-          const targetCanvasNode = this._canvasNodeMap[ccl.target.canvasId];
-          if (sourceCanvasNode && targetCanvasNode) {
-            allLinks.push({
-              id: ccl.id + '_s',
-              source: sourceNode,
-              target: sourceCanvasNode,
-              type: 'free',
-              label: ccl.label || '↔',
-              direction: 'bidirectional',
-              strength: 0.5,
-              crossCanvas: true
-            });
-            allLinks.push({
-              id: ccl.id + '_t',
-              source: targetCanvasNode,
-              target: targetNode,
-              type: 'free',
-              label: '',
-              direction: 'bidirectional',
-              strength: 0.5,
-              crossCanvas: true
-            });
-          }
-        }
-      }
-    }
-
-    this.nodes = allNodes;
-    this.links = allLinks;
-    this.render();
+      } catch(err) { this.toast('导入失败，请检查 JSON 格式'); }
+      this._loadFilePanel();
+    };
+    input.click();
   },
 
   // ========== 持久化 ==========
   async saveData() {
-    // 如果是融合画布，只保存跨画布连接
-    if (this.currentCanvasId.startsWith('merged_')) {
-      await this._saveMergedCanvas();
-      return;
-    }
-
-    // 普通画布：保存节点和边
     const data = {
-      nodes: this.nodes.filter(n => !this.isCanvasNode(n)).map(n => ({ id:n.id, title:n.title, content:n.content, x:n.x, y:n.y, color:n.color, shape:n.shape, sizeScale:n.sizeScale, canvasId:n.canvasId })),
-      links: this.links.filter(l => !l.crossCanvas).map(l => ({ id:l.id, source:l.source.id, target:l.target.id, type:l.type, label:l.label, direction:l.direction, strength:l.strength }))
+      nodes: this.nodes.map(n => ({ id:n.id, title:n.title, content:n.content, x:n.x, y:n.y, color:n.color, shape:n.shape, sizeScale:n.sizeScale })),
+      links: this.links.map(l => ({ id:l.id, source:l.source.id, target:l.target.id, type:l.type, label:l.label, direction:l.direction, strength:l.strength }))
     };
-
     if (this._backendOnline) {
-      const apiPath = this.currentCanvasId === 'default' ? '/api/data' : `/api/canvas/${this.currentCanvasId}`;
-      const r = await this._apiPost(apiPath, { data });
+      const r = await this._apiPost(`/api/data?file=${this.currentFile}`, { data });
       if (r && r.ok) { this.toast('已保存到后端'); return; }
       this._backendOnline = false;
     }
     try {
-      localStorage.setItem('kg-canvas-' + this.currentCanvasId, JSON.stringify(data));
+      localStorage.setItem('kg-data-' + this.currentFile, JSON.stringify(data));
       this.toast('已保存（本地）');
     } catch(e) { this.toast('保存失败：存储不足'); }
   },
 
-  async _saveMergedCanvas() {
-    // 从链接中提取跨画布连接
-    const crossCanvasLinks = this.links.filter(l => l.crossCanvas).map(l => {
-      const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
-      const targetId = typeof l.target === 'object' ? l.target.id : l.target;
-      const sourceNode = this.nodes.find(n => n.id === sourceId);
-      const targetNode = this.nodes.find(n => n.id === targetId);
-      return {
-        id: l.id,
-        source: { canvasId: sourceNode?.canvasId, nodeId: sourceId },
-        target: { canvasId: targetNode?.canvasId, nodeId: targetId },
-        label: l.label || ''
-      };
-    });
-
-    if (this._backendOnline) {
-      const r = await this._apiPost(`/api/merged/${this.currentCanvasId}`, { crossCanvasLinks });
-      if (r && r.ok) { this.toast('已保存跨画布连接到后端'); return; }
-      this._backendOnline = false;
-    }
-    this.toast('已保存（本地）');
-  },
-
   loadData() {
-    const canvasKey = 'kg-canvas-' + this.currentCanvasId;
-
-    // 如果是融合画布，使用融合加载逻辑
-    if (this.currentCanvasId.startsWith('merged_')) {
-      this._loadMergedData();
-      return;
-    }
+    const fileKey = 'kg-data-' + this.currentFile;
 
     // 如果后端在线，直接从后端加载
     if (this._backendOnline) {
       (async () => {
-        const apiPath = this.currentCanvasId === 'default' ? '/api/data' : `/api/canvas/${this.currentCanvasId}`;
-        const r = await this._apiGet(apiPath);
+        const r = await this._apiGet(`/api/data?file=${this.currentFile}`);
         if (r && r.ok && r.data) {
-          this.nodes = r.data.nodes.map(n => ({ ...n, shape: n.shape || 'rounded-rect', canvasId: n.canvasId || this.currentCanvasId }));
+          this.nodes = (r.data.nodes || []).map(n => ({ ...n, shape: n.shape || 'rounded-rect' }));
           this.links = (r.data.links || []).map(l => {
             l.source = this.nodes.find(n => n.id===l.source) || l.source;
             l.target = this.nodes.find(n => n.id===l.target) || l.target;
             l.direction = l.direction || 'bidirectional';
-            l.crossCanvas = l.crossCanvas || false;
             return l;
           });
           this.render();
-          if (this.nodes.length > 0) {
-            this.toast('已从后端加载数据');
-          }
           return;
         }
-        // 后端没有数据，尝试本地
-        this._loadFromLocal(canvasKey);
+        this._loadFromLocal(fileKey);
       })();
       return;
     }
-
-    // 后端不在线，从本地加载
-    this._loadFromLocal(canvasKey);
+    this._loadFromLocal(fileKey);
   },
 
-  _loadFromLocal(canvasKey) {
+  _loadFromLocal(fileKey) {
     try {
-      const raw = localStorage.getItem(canvasKey) || localStorage.getItem('kg-data-v2') || localStorage.getItem('kg-data');
+      const raw = localStorage.getItem(fileKey) || localStorage.getItem('kg-data-v2') || localStorage.getItem('kg-data');
       if (raw) {
         const data = JSON.parse(raw);
-        this.nodes = (data.nodes || []).map(n => ({ ...n, shape: n.shape || 'rounded-rect', canvasId: n.canvasId || this.currentCanvasId }));
+        this.nodes = (data.nodes || []).map(n => ({ ...n, shape: n.shape || 'rounded-rect' }));
         this.links = (data.links || []).map(l => {
           l.source = this.nodes.find(n => n.id===l.source) || l.source;
           l.target = this.nodes.find(n => n.id===l.target) || l.target;
           l.direction = l.direction || 'bidirectional';
-          l.crossCanvas = l.crossCanvas || false;
           return l;
         });
       } else {
-        // 全新画布
         this.nodes = [];
         this.links = [];
       }
