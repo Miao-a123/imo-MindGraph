@@ -2047,8 +2047,9 @@ const KG = {
       <div class="canvas-item" style="padding:12px;background:#252540;border-radius:8px;margin-bottom:8px;cursor:pointer;border:2px solid ${c.id === this.currentCanvasId ? '#5a5acc' : 'transparent'}" onclick="KG.switchCanvas('${c.id}')">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
           <input type="checkbox" onclick="event.stopPropagation();KG.toggleCanvasSelect('${c.id}')" ${this._selectedCanvasIds?.has(c.id) ? 'checked' : ''} style="accent-color:#9a6acc">
-          <span style="font-size:14px;color:#c0c0d0;font-weight:500">${c.title}</span>
+          <span style="font-size:14px;color:#c0c0d0;font-weight:500;flex:1">${c.title}</span>
           ${c.id === this.currentCanvasId ? '<span style="font-size:10px;background:#5a5acc;color:#fff;padding:2px 6px;border-radius:4px">当前</span>' : ''}
+          ${c.id !== 'default' ? '<button onclick="event.stopPropagation();KG.deleteCanvas(\'' + c.id + '\')" style="background:#8a3a3a;color:#fff;border:none;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">删除</button>' : ''}
         </div>
         <div style="font-size:11px;color:#8a8aaa">${c.nodeCount || 0} 节点 · ${c.linkCount || 0} 连接</div>
       </div>
@@ -2119,6 +2120,26 @@ const KG = {
     } catch(e) { this.toast('删除画布失败'); }
   },
 
+  async deleteCanvas(canvasId) {
+    if (canvasId === 'default') {
+      this.toast('默认画布不能删除');
+      return;
+    }
+    if (!confirm('确定删除该画布？此操作不可恢复。')) return;
+    try {
+      const r = await this._apiDelete(`/api/canvas/${canvasId}`);
+      if (r && r.ok) {
+        await this.loadCanvasList();
+        if (this.currentCanvasId === canvasId) {
+          await this.switchCanvas('default');
+        } else {
+          this._loadCanvasPanel();
+        }
+        this.toast('画布已删除');
+      }
+    } catch(e) { this.toast('删除画布失败'); }
+  },
+
   // ========== 画布节点 & 融合模式 ==========
   isCanvasNode(node) {
     return node.isCanvasNode === true || node.canvasRef != null;
@@ -2164,12 +2185,20 @@ const KG = {
     const allNodes = [], allLinks = [];
     const nodesMap = {};
 
-    // 首先添加当前画布的节点
-    for (const n of this.nodes) {
-      if (!this.isCanvasNode(n)) {
-        n.canvasId = n.canvasId || this.currentCanvasId;
-        allNodes.push(n);
-        nodesMap[n.id] = n;
+    // 首先加载当前画布的数据
+    const currentApiPath = this.currentCanvasId === 'default' ? '/api/data' : `/api/canvas/${this.currentCanvasId}`;
+    const currentData = await this._apiGet(currentApiPath);
+    if (currentData && currentData.ok && currentData.data) {
+      for (const n of currentData.data.nodes || []) {
+        if (!this.isCanvasNode(n)) {
+          n.canvasId = this.currentCanvasId;
+          allNodes.push(n);
+          nodesMap[n.id] = n;
+        }
+      }
+      for (const l of currentData.data.links || []) {
+        l.crossCanvas = false;
+        allLinks.push(l);
       }
     }
 
@@ -2208,6 +2237,9 @@ const KG = {
           }
           for (const l of r.data.links || []) {
             l.crossCanvas = true;
+            // 将 link 的 source/target 从 ID 转换为节点对象
+            l.source = nodesMap[l.source] || l.source;
+            l.target = nodesMap[l.target] || l.target;
             allLinks.push(l);
           }
         }
@@ -2218,10 +2250,11 @@ const KG = {
     if (!this.isMergedMode) {
       const newLinks = [];
       for (const l of allLinks) {
-        const sCanvas = this.getCanvasId(nodesMap[l.source.id || l.source] || {});
-        const tCanvas = this.getCanvasId(nodesMap[l.target.id || l.target] || {});
+        const sNode = typeof l.source === 'object' ? l.source : nodesMap[l.source];
+        const tNode = typeof l.target === 'object' ? l.target : nodesMap[l.target];
+        const sCanvas = this.getCanvasId(sNode || {});
+        const tCanvas = this.getCanvasId(tNode || {});
         if (sCanvas !== tCanvas) {
-          // 找到源和目标所在的画布节点
           const sCanvasNode = this._canvasNodeMap[sCanvas];
           const tCanvasNode = this._canvasNodeMap[tCanvas];
           if (sCanvasNode && tCanvasNode) {
@@ -2279,10 +2312,39 @@ const KG = {
   },
 
   loadData() {
-    let loaded = false;
     const canvasKey = 'kg-canvas-' + this.currentCanvasId;
 
-    // 同步从 localStorage 加载
+    // 如果后端在线，直接从后端加载
+    if (this._backendOnline) {
+      (async () => {
+        const apiPath = this.currentCanvasId === 'default' ? '/api/data' : `/api/canvas/${this.currentCanvasId}`;
+        const r = await this._apiGet(apiPath);
+        if (r && r.ok && r.data) {
+          this.nodes = r.data.nodes.map(n => ({ ...n, shape: n.shape || 'rounded-rect', canvasId: n.canvasId || this.currentCanvasId }));
+          this.links = (r.data.links || []).map(l => {
+            l.source = this.nodes.find(n => n.id===l.source) || l.source;
+            l.target = this.nodes.find(n => n.id===l.target) || l.target;
+            l.direction = l.direction || 'bidirectional';
+            l.crossCanvas = l.crossCanvas || false;
+            return l;
+          });
+          this.render();
+          if (this.nodes.length > 0) {
+            this.toast('已从后端加载数据');
+          }
+          return;
+        }
+        // 后端没有数据，尝试本地
+        this._loadFromLocal(canvasKey);
+      })();
+      return;
+    }
+
+    // 后端不在线，从本地加载
+    this._loadFromLocal(canvasKey);
+  },
+
+  _loadFromLocal(canvasKey) {
     try {
       const raw = localStorage.getItem(canvasKey) || localStorage.getItem('kg-data-v2') || localStorage.getItem('kg-data');
       if (raw) {
@@ -2295,56 +2357,13 @@ const KG = {
           l.crossCanvas = l.crossCanvas || false;
           return l;
         });
-        loaded = true;
+      } else {
+        // 全新画布
+        this.nodes = [];
+        this.links = [];
       }
+      this.render();
     } catch(e) { console.warn('加载失败', e); }
-
-    // 如果后端在线，对比后端数据
-    if (this._backendOnline) {
-      (async () => {
-        const apiPath = this.currentCanvasId === 'default' ? '/api/data' : `/api/canvas/${this.currentCanvasId}`;
-        const r = await this._apiGet(apiPath);
-        if (r && r.ok && r.data && r.data.nodes && r.data.nodes.length > 0) {
-          // 后端有数据，优先用后端
-          this.nodes = r.data.nodes.map(n => ({ ...n, shape: n.shape || 'rounded-rect', canvasId: n.canvasId || this.currentCanvasId }));
-          this.links = (r.data.links || []).map(l => {
-            l.source = this.nodes.find(n => n.id===l.source) || l.source;
-            l.target = this.nodes.find(n => n.id===l.target) || l.target;
-            l.direction = l.direction || 'bidirectional';
-            l.crossCanvas = l.crossCanvas || false;
-            return l;
-          });
-          this.render();
-          this.toast('已从后端加载数据');
-        } else if (loaded) {
-          // 后端空但本地有数据 → 自动迁移到后端
-          this.saveData();
-          this.toast('本地数据已同步到后端');
-        }
-      })();
-    }
-
-    if (this.nodes.length === 0) {
-      const cx=700,cy=400;
-      const n1={id:this.genId(),title:'人工智能',content:'人工智能是计算机科学分支，旨在创建模拟人类智能的系统。涵盖机器学习、深度学习、自然语言处理等。',x:cx,y:cy,color:'#4a9eff',shape:'rounded-rect'};
-      const n2={id:this.genId(),title:'机器学习',content:'机器学习使计算机从数据中学习模式而不需显式编程。包括监督学习、无监督学习和强化学习。',x:cx-220,y:cy+180,color:'#5cce7b',shape:'circle'};
-      const n3={id:this.genId(),title:'深度学习',content:'深度学习使用多层神经网络从海量数据中学习复杂模式。CNN用于视觉，RNN/Transformer用于序列。',x:cx+240,y:cy+170,color:'#f0a040',shape:'diamond'};
-      const n4={id:this.genId(),title:'自然语言处理',content:'NLP使计算机理解、解释和生成人类语言。应用包括机器翻译、情感分析、对话系统。',x:cx-20,y:cy+320,color:'#cc5a8a',shape:'hexagon'};
-      const n5={id:this.genId(),title:'计算机视觉',content:'计算机视觉使机器从图像和视频中提取信息并理解视觉世界。包括目标检测、图像分割。',x:cx+420,y:cy+80,color:'#7b6bcc',shape:'pill'};
-      const n6={id:this.genId(),title:'Transformer',content:'基于自注意力机制的架构，彻底改变了NLP和CV领域。GPT、BERT等均基于此。',x:cx+180,y:cy-180,color:'#40c0c0',shape:'rounded-rect'};
-      this.nodes=[n1,n2,n3,n4,n5,n6];
-      this.links=[
-        {id:this.genId(),source:n1,target:n2,type:'hierarchical',label:'包含',direction:'source_to_target',strength:0.7},
-        {id:this.genId(),source:n1,target:n3,type:'hierarchical',label:'包含',direction:'source_to_target',strength:0.7},
-        {id:this.genId(),source:n1,target:n4,type:'hierarchical',label:'包含',direction:'source_to_target',strength:0.7},
-        {id:this.genId(),source:n1,target:n5,type:'hierarchical',label:'包含',direction:'source_to_target',strength:0.7},
-        {id:this.genId(),source:n1,target:n6,type:'hierarchical',label:'包含',direction:'source_to_target',strength:0.7},
-        {id:this.genId(),source:n3,target:n5,type:'free',label:'相关',direction:'bidirectional',strength:0.4},
-        {id:this.genId(),source:n3,target:n6,type:'free',label:'基于',direction:'source_to_target',strength:0.6},
-        {id:this.genId(),source:n4,target:n6,type:'free',label:'核心架构',direction:'source_to_target',strength:0.7},
-      ];
-    }
-    this.render();
   },
 
   exportJSON() {
