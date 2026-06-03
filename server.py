@@ -6,10 +6,11 @@ API:
   GET  /api/data       - 获取图谱数据（默认画布）
   POST /api/data       - 保存图谱数据（默认画布）
   GET  /api/canvases   - 获取画布列表
-  POST /api/canvases   - 创建新画布
+  POST /api/canvases   - 创建新画布或融合画布
   GET  /api/canvas/{id} - 获取画布数据
   POST /api/canvas/{id} - 保存画布数据
   DELETE /api/canvas/{id} - 删除画布
+  GET  /api/merged/{id} - 获取融合画布数据
   GET  /api/settings   - 获取设置
   POST /api/settings   - 保存设置
   GET  /api/backups    - 列出备份
@@ -24,7 +25,7 @@ import shutil
 import threading
 from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(ROOT_DIR, "data")
@@ -32,8 +33,10 @@ BACKUP_DIR = os.path.join(DATA_DIR, "backups")
 DATA_FILE = os.path.join(DATA_DIR, "graph-data.json")
 SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
 CANVASES_FILE = os.path.join(DATA_DIR, "canvases.json")
+MERGED_DIR = os.path.join(DATA_DIR, "merged")
 
 os.makedirs(BACKUP_DIR, exist_ok=True)
+os.makedirs(MERGED_DIR, exist_ok=True)
 
 MIME = {
     ".html": "text/html; charset=utf-8",
@@ -142,6 +145,25 @@ def update_canvas_meta(canvas_id, title=None, node_count=None, link_count=None):
     save_canvases(data)
 
 
+def load_merged_canvas(merged_id):
+    """加载融合画布数据"""
+    merged_file = os.path.join(MERGED_DIR, f"{merged_id}.json")
+    if os.path.exists(merged_file):
+        return safe_read_json(merged_file)
+    return None
+
+
+def save_merged_canvas(merged_id, data):
+    """保存融合画布数据"""
+    merged_file = os.path.join(MERGED_DIR, f"{merged_id}.json")
+    safe_write_json(merged_file, data)
+
+
+def get_merged_canvas_file(merged_id):
+    """获取融合画布文件路径"""
+    return os.path.join(MERGED_DIR, f"{merged_id}.json")
+
+
 def init_default_canvas():
     """初始化默认画布（如果需要迁移）"""
     global DATA_FILE
@@ -245,6 +267,18 @@ class APIHandler(BaseHTTPRequestHandler):
             data = safe_read_json(canvas_file)
             self._send_json(200, {"ok": True, "data": data, "updated": now_str()})
 
+        elif path.startswith("/api/merged/"):
+            # 获取融合画布数据
+            merged_id = path.replace("/api/merged/", "")
+            if not self._valid_canvas_id(merged_id):
+                self._send_json(400, {"error": "Invalid merged canvas ID"})
+                return
+            merged_data = load_merged_canvas(merged_id)
+            if not merged_data:
+                self._send_json(404, {"error": "Merged canvas not found"})
+                return
+            self._send_json(200, {"ok": True, "data": merged_data, "updated": now_str()})
+
         elif path == "/api/settings":
             data = safe_read_json(SETTINGS_FILE)
             self._send_json(200, {"ok": True, "data": data, "updated": now_str()})
@@ -296,9 +330,11 @@ class APIHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"ok": True, "saved": now_str()})
 
         elif path == "/api/canvases":
-            # 创建新画布
+            # 创建新画布或融合画布
             canvas_id = req.get("id", "")
             title = req.get("title", canvas_id)
+            is_merged = req.get("isMerged", False)
+            source_canvases = req.get("sourceCanvases", [])
 
             if not canvas_id or not self._valid_canvas_id(canvas_id):
                 self._send_json(400, {"error": "Invalid canvas ID"})
@@ -309,22 +345,44 @@ class APIHandler(BaseHTTPRequestHandler):
                 self._send_json(400, {"error": "Canvas ID already exists"})
                 return
 
-            # 创建空画布
-            canvas_file = get_canvas_file(canvas_id)
-            safe_write_json(canvas_file, {"nodes": [], "links": []})
+            if is_merged:
+                # 创建融合画布
+                merged_data = {
+                    "type": "merged",
+                    "sourceCanvases": source_canvases,
+                    "crossCanvasLinks": [],
+                    "nodes": [],  # 融合画布不存储节点
+                    "links": []
+                }
+                save_merged_canvas(canvas_id, merged_data)
 
-            # 添加到索引
-            canvases_data["canvases"].append({
-                "id": canvas_id,
-                "title": title,
-                "created": now_str(),
-                "updated": now_str(),
-                "nodeCount": 0,
-                "linkCount": 0
-            })
+                # 添加到索引，标记为融合画布
+                canvases_data["canvases"].append({
+                    "id": canvas_id,
+                    "title": title,
+                    "created": now_str(),
+                    "updated": now_str(),
+                    "nodeCount": 0,
+                    "linkCount": 0,
+                    "isMerged": True,
+                    "sourceCanvases": source_canvases
+                })
+            else:
+                # 创建普通画布
+                canvas_file = get_canvas_file(canvas_id)
+                safe_write_json(canvas_file, {"nodes": [], "links": []})
+
+                canvases_data["canvases"].append({
+                    "id": canvas_id,
+                    "title": title,
+                    "created": now_str(),
+                    "updated": now_str(),
+                    "nodeCount": 0,
+                    "linkCount": 0
+                })
             save_canvases(canvases_data)
 
-            self._send_json(200, {"ok": True, "canvas": {"id": canvas_id, "title": title}})
+            self._send_json(200, {"ok": True, "canvas": {"id": canvas_id, "title": title, "isMerged": is_merged}})
 
         elif path.startswith("/api/canvas/") and not path.endswith("/delete"):
             # 保存画布数据
@@ -341,6 +399,24 @@ class APIHandler(BaseHTTPRequestHandler):
             update_canvas_meta(canvas_id,
                 node_count=len(data.get("nodes", [])),
                 link_count=len(data.get("links", [])))
+
+            self._send_json(200, {"ok": True, "saved": now_str()})
+
+        elif path.startswith("/api/merged/") and not path.endswith("/delete"):
+            # 保存融合画布的跨画布连接
+            merged_id = path.replace("/api/merged/", "")
+            if not self._valid_canvas_id(merged_id):
+                self._send_json(400, {"error": "Invalid merged canvas ID"})
+                return
+
+            merged_data = load_merged_canvas(merged_id)
+            if not merged_data:
+                self._send_json(404, {"error": "Merged canvas not found"})
+                return
+
+            # 更新跨画布连接
+            merged_data["crossCanvasLinks"] = req.get("crossCanvasLinks", [])
+            save_merged_canvas(merged_id, merged_data)
 
             self._send_json(200, {"ok": True, "saved": now_str()})
 
@@ -398,6 +474,23 @@ class APIHandler(BaseHTTPRequestHandler):
             save_canvases(canvases_data)
 
             self._send_json(200, {"ok": True, "deleted": canvas_id})
+
+        elif path.startswith("/api/merged/"):
+            merged_id = path.replace("/api/merged/", "")
+            if not self._valid_canvas_id(merged_id):
+                self._send_json(400, {"error": "Invalid merged canvas ID"})
+                return
+
+            merged_file = get_merged_canvas_file(merged_id)
+            if os.path.exists(merged_file):
+                os.remove(merged_file)
+
+            # 从索引移除
+            canvases_data = load_canvases()
+            canvases_data["canvases"] = [cv for cv in canvases_data["canvases"] if cv["id"] != merged_id]
+            save_canvases(canvases_data)
+
+            self._send_json(200, {"ok": True, "deleted": merged_id})
         else:
             self._send_json(404, {"error": "Not Found"})
 

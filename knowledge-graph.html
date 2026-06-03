@@ -2075,17 +2075,44 @@ const KG = {
       this.toast('请至少选择2个画布进行融合');
       return;
     }
-    // 切换到第一个画布作为基础
-    this.currentCanvasId = ids[0];
-    this.mergedCanvasIds = ids.slice(1);
-    this.isMergedMode = true;
-    this._selectedCanvasIds.clear();
 
-    await this._loadMergedData();
-    this.closeCanvasPanel();
-    document.getElementById('merge-indicator').style.display = 'inline';
-    document.getElementById('merge-indicator').textContent = '融合中: ' + ids.join(', ');
-    this.toast('已进入融合模式，显示 ' + ids.length + ' 个画布');
+    // 创建融合画布名称
+    const titles = ids.map(id => {
+      const cv = this.canvases.find(c => c.id === id);
+      return cv ? cv.title : id;
+    });
+    const mergedTitle = titles.join(' + ');
+
+    // 创建融合画布ID
+    const mergedId = 'merged_' + Date.now();
+
+    try {
+      // 创建融合画布
+      const r = await this._apiPost('/api/canvases', {
+        id: mergedId,
+        title: mergedTitle,
+        isMerged: true,
+        sourceCanvases: ids
+      });
+
+      if (r && r.ok) {
+        // 更新状态
+        this.mergedCanvasIds = ids;
+        this.currentCanvasId = mergedId;
+        this.isMergedMode = true;
+        this._selectedCanvasIds.clear();
+
+        await this.loadCanvasList();
+        await this._loadMergedData();
+
+        this.closeCanvasPanel();
+        document.getElementById('merge-indicator').style.display = 'inline';
+        document.getElementById('merge-indicator').textContent = '融合: ' + mergedTitle;
+        this.toast('已创建融合画布: ' + mergedTitle);
+      } else {
+        this.toast('创建融合画布失败');
+      }
+    } catch(e) { console.error('Merge error:', e); this.toast('创建融合画布失败'); }
   },
 
   async createCanvas() {
@@ -2181,55 +2208,50 @@ const KG = {
   },
 
   async _loadMergedData() {
-    // 加载所有融合画布的数据
     const allNodes = [], allLinks = [];
     const nodesMap = {};
     this._canvasNodeMap = {};
-    const canvasCenters = {};
 
-    // 首先加载当前画布的数据
-    const currentApiPath = this.currentCanvasId === 'default' ? '/api/data' : `/api/canvas/${this.currentCanvasId}`;
-    const currentData = await this._apiGet(currentApiPath);
-    if (currentData && currentData.ok && currentData.data) {
-      // 当前画布位置在中心
-      canvasCenters[this.currentCanvasId] = { x: 0, y: 0 };
-      for (const n of currentData.data.nodes || []) {
-        if (!this.isCanvasNode(n)) {
-          n.canvasId = this.currentCanvasId;
-          allNodes.push(n);
-          nodesMap[n.id] = n;
-        }
-      }
-      for (const l of currentData.data.links || []) {
-        l.crossCanvas = false;
-        l.source = nodesMap[l.source.id] || l.source;
-        l.target = nodesMap[l.target.id] || l.target;
-        allLinks.push(l);
+    // 检查当前画布是否是融合画布
+    const isMergedCanvas = this.currentCanvasId.startsWith('merged_');
+
+    // 加载融合画布的跨画布连接
+    let crossCanvasLinks = [];
+    if (isMergedCanvas) {
+      const mergedData = await this._apiGet(`/api/merged/${this.currentCanvasId}`);
+      if (mergedData && mergedData.ok && mergedData.data) {
+        crossCanvasLinks = mergedData.data.crossCanvasLinks || [];
       }
     }
 
-    // 为每个融合画布创建画布节点，并设置位置
+    // 确定要加载的子画布
+    const sourceCanvases = isMergedCanvas ?
+      (this.canvases.find(c => c.id === this.currentCanvasId)?.sourceCanvases || []) :
+      [this.currentCanvasId, ...this.mergedCanvasIds];
+
+    // 画布节点位置
     const positions = [
+      { x: 0, y: 0 },
       { x: -500, y: -300 },
       { x: 500, y: -300 },
       { x: -500, y: 300 },
       { x: 500, y: 300 }
     ];
-    let posIdx = 0;
 
-    for (const cid of this.mergedCanvasIds) {
+    // 加载所有子画布的数据
+    for (let idx = 0; idx < sourceCanvases.length; idx++) {
+      const cid = sourceCanvases[idx];
       const cv = this.canvases.find(c => c.id === cid);
       if (!cv) continue;
 
-      const pos = positions[posIdx++] || { x: Math.random() * 800 - 400, y: Math.random() * 600 - 300 };
-      canvasCenters[cid] = pos;
+      const pos = positions[idx] || { x: Math.random() * 800 - 400, y: Math.random() * 600 - 300 };
 
       // 创建画布节点
       const canvasNode = {
         id: 'canvas-node-' + cid,
         title: cv.title,
         content: cv.nodeCount + ' 节点 · ' + cv.linkCount + ' 连接',
-        canvasId: 'merged',
+        canvasId: cid,
         isCanvasNode: true,
         canvasRef: cid,
         shape: 'rounded-rect',
@@ -2242,86 +2264,100 @@ const KG = {
       nodesMap[canvasNode.id] = canvasNode;
       this._canvasNodeMap[cid] = canvasNode;
 
-      try {
-        const r = await this._apiGet(`/api/canvas/${cid}`);
-        if (r && r.ok && r.data) {
-          // 加载子画布节点，位置围绕画布节点分布
-          const childNodes = r.data.nodes || [];
-          childNodes.forEach((n, i) => {
-            if (!this.isCanvasNode(n)) {
-              const angle = (i / childNodes.length) * Math.PI * 2;
-              const radius = 150 + Math.random() * 100;
-              n.canvasId = cid;
-              n.x = pos.x + Math.cos(angle) * radius;
-              n.y = pos.y + Math.sin(angle) * radius;
-              allNodes.push(n);
-              nodesMap[n.id] = n;
-            }
-          });
-          for (const l of r.data.links || []) {
-            l.crossCanvas = true;
-            l.source = nodesMap[l.source.id || l.source] || l.source;
-            l.target = nodesMap[l.target.id || l.target] || l.target;
-            allLinks.push(l);
+      // 加载子画布节点
+      const apiPath = cid === 'default' ? '/api/data' : `/api/canvas/${cid}`;
+      const r = await this._apiGet(apiPath);
+      if (r && r.ok && r.data) {
+        const childNodes = r.data.nodes || [];
+        childNodes.forEach((n, i) => {
+          if (!this.isCanvasNode(n)) {
+            const angle = (i / Math.max(childNodes.length, 1)) * Math.PI * 2;
+            const radius = 150 + Math.random() * 100;
+            n.canvasId = cid;
+            n.x = pos.x + Math.cos(angle) * radius;
+            n.y = pos.y + Math.sin(angle) * radius;
+            allNodes.push(n);
+            nodesMap[n.id] = n;
           }
-        }
-      } catch(e) { console.warn('加载画布', cid, '失败', e); }
-    }
-
-    // 非融合模式下，将跨画布边连接到画布节点
-    if (!this.isMergedMode) {
-      const newLinks = [];
-      for (const l of allLinks) {
-        const sNode = l.source;
-        const tNode = l.target;
-        const sCanvas = this.getCanvasId(sNode);
-        const tCanvas = this.getCanvasId(tNode);
-        if (sCanvas !== tCanvas && sCanvas !== 'merged' && tCanvas !== 'merged') {
-          // 跨画布边：连接到画布节点
-          const sCanvasNode = this._canvasNodeMap[sCanvas];
-          const tCanvasNode = this._canvasNodeMap[tCanvas];
-          if (sCanvasNode && tCanvasNode) {
-            newLinks.push({
-              id: l.id + '_s',
-              source: sNode,
-              target: sCanvasNode,
-              type: l.type,
-              label: l.label || '↔',
-              direction: 'bidirectional',
-              strength: l.strength || 0.5,
-              crossCanvas: true
-            });
-            newLinks.push({
-              id: l.id + '_t',
-              source: tCanvasNode,
-              target: tNode,
-              type: l.type,
-              label: '',
-              direction: 'bidirectional',
-              strength: l.strength || 0.5,
-              crossCanvas: true
-            });
-          }
-        } else {
-          newLinks.push(l);
+        });
+        for (const l of r.data.links || []) {
+          // 处理 link 的 source/target
+          const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+          const targetId = typeof l.target === 'object' ? l.target.id : l.target;
+          l.source = nodesMap[sourceId] || l.source;
+          l.target = nodesMap[targetId] || l.target;
+          l.crossCanvas = false;
+          allLinks.push(l);
         }
       }
-      this.links = newLinks;
-    } else {
-      this.links = allLinks;
+    }
+
+    // 添加跨画布连接（融合模式下直接连接节点，非融合模式下连接到画布节点）
+    for (const ccl of crossCanvasLinks) {
+      const sourceNode = nodesMap[ccl.source.nodeId];
+      const targetNode = nodesMap[ccl.target.nodeId];
+      if (sourceNode && targetNode) {
+        const link = {
+          id: ccl.id,
+          source: sourceNode,
+          target: targetNode,
+          type: 'free',
+          label: ccl.label || '↔',
+          direction: 'bidirectional',
+          strength: 0.5,
+          crossCanvas: true
+        };
+        if (this.isMergedMode) {
+          allLinks.push(link);
+        } else {
+          // 非融合模式：连接到画布节点
+          const sourceCanvasNode = this._canvasNodeMap[ccl.source.canvasId];
+          const targetCanvasNode = this._canvasNodeMap[ccl.target.canvasId];
+          if (sourceCanvasNode && targetCanvasNode) {
+            allLinks.push({
+              id: ccl.id + '_s',
+              source: sourceNode,
+              target: sourceCanvasNode,
+              type: 'free',
+              label: ccl.label || '↔',
+              direction: 'bidirectional',
+              strength: 0.5,
+              crossCanvas: true
+            });
+            allLinks.push({
+              id: ccl.id + '_t',
+              source: targetCanvasNode,
+              target: targetNode,
+              type: 'free',
+              label: '',
+              direction: 'bidirectional',
+              strength: 0.5,
+              crossCanvas: true
+            });
+          }
+        }
+      }
     }
 
     this.nodes = allNodes;
+    this.links = allLinks;
     this.render();
   },
 
   // ========== 持久化 ==========
   async saveData() {
+    // 如果是融合画布，只保存跨画布连接
+    if (this.currentCanvasId.startsWith('merged_')) {
+      await this._saveMergedCanvas();
+      return;
+    }
+
+    // 普通画布：保存节点和边
     const data = {
-      nodes: this.nodes.map(n => ({ id:n.id, title:n.title, content:n.content, x:n.x, y:n.y, color:n.color, shape:n.shape, sizeScale:n.sizeScale, canvasId:n.canvasId })),
-      links: this.links.map(l => ({ id:l.id, source:l.source.id, target:l.target.id, type:l.type, label:l.label, direction:l.direction, strength:l.strength, crossCanvas:l.crossCanvas }))
+      nodes: this.nodes.filter(n => !this.isCanvasNode(n)).map(n => ({ id:n.id, title:n.title, content:n.content, x:n.x, y:n.y, color:n.color, shape:n.shape, sizeScale:n.sizeScale, canvasId:n.canvasId })),
+      links: this.links.filter(l => !l.crossCanvas).map(l => ({ id:l.id, source:l.source.id, target:l.target.id, type:l.type, label:l.label, direction:l.direction, strength:l.strength }))
     };
-    // 优先后端，失败则降级 localStorage
+
     if (this._backendOnline) {
       const apiPath = this.currentCanvasId === 'default' ? '/api/data' : `/api/canvas/${this.currentCanvasId}`;
       const r = await this._apiPost(apiPath, { data });
@@ -2334,8 +2370,37 @@ const KG = {
     } catch(e) { this.toast('保存失败：存储不足'); }
   },
 
+  async _saveMergedCanvas() {
+    // 从链接中提取跨画布连接
+    const crossCanvasLinks = this.links.filter(l => l.crossCanvas).map(l => {
+      const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+      const targetId = typeof l.target === 'object' ? l.target.id : l.target;
+      const sourceNode = this.nodes.find(n => n.id === sourceId);
+      const targetNode = this.nodes.find(n => n.id === targetId);
+      return {
+        id: l.id,
+        source: { canvasId: sourceNode?.canvasId, nodeId: sourceId },
+        target: { canvasId: targetNode?.canvasId, nodeId: targetId },
+        label: l.label || ''
+      };
+    });
+
+    if (this._backendOnline) {
+      const r = await this._apiPost(`/api/merged/${this.currentCanvasId}`, { crossCanvasLinks });
+      if (r && r.ok) { this.toast('已保存跨画布连接到后端'); return; }
+      this._backendOnline = false;
+    }
+    this.toast('已保存（本地）');
+  },
+
   loadData() {
     const canvasKey = 'kg-canvas-' + this.currentCanvasId;
+
+    // 如果是融合画布，使用融合加载逻辑
+    if (this.currentCanvasId.startsWith('merged_')) {
+      this._loadMergedData();
+      return;
+    }
 
     // 如果后端在线，直接从后端加载
     if (this._backendOnline) {
